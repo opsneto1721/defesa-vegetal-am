@@ -1,0 +1,7 @@
+const DB_NAME='defesaVegetalAM', DB_VERSION=2;
+function openDB(){return new Promise((ok,fail)=>{const r=indexedDB.open(DB_NAME,DB_VERSION);r.onupgradeneeded=e=>{const db=e.target.result;['properties','inspections','queue','pests','meta'].forEach(n=>{if(!db.objectStoreNames.contains(n))db.createObjectStore(n,{keyPath:'id'})});};r.onsuccess=()=>ok(r.result);r.onerror=()=>fail(r.error)})}
+async function put(store,obj){const db=await openDB();return new Promise((ok,fail)=>{const t=db.transaction(store,'readwrite');t.objectStore(store).put(obj);t.oncomplete=()=>ok(obj);t.onerror=()=>fail(t.error)})}
+async function all(store){const db=await openDB();return new Promise((ok,fail)=>{const r=db.transaction(store).objectStore(store).getAll();r.onsuccess=()=>ok(r.result);r.onerror=()=>fail(r.error)})}
+async function getOne(store,id){const db=await openDB();return new Promise((ok,fail)=>{const r=db.transaction(store).objectStore(store).get(id);r.onsuccess=()=>ok(r.result);r.onerror=()=>fail(r.error)})}
+async function remove(store,id){const db=await openDB();return new Promise((ok,fail)=>{const t=db.transaction(store,'readwrite');t.objectStore(store).delete(id);t.oncomplete=()=>ok();t.onerror=()=>fail(t.error)})}
+async function clearStore(store){const db=await openDB();return new Promise((ok,fail)=>{const t=db.transaction(store,'readwrite');t.objectStore(store).clear();t.oncomplete=()=>ok();t.onerror=()=>fail(t.error)})}
