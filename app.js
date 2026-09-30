@@ -12,124 +12,197 @@ $('settingsForm').onsubmit=e=>{e.preventDefault();let url=$('apiUrl').value.trim
 $('testApiBtn').onclick=async()=>{if(!$('apiUrl').value||!$('apiToken').value)return alert('Informe URL e token.');APP_CONFIG.save($('apiUrl').value.trim().replace(/\/+$/,''),$('apiToken').value);try{const r=await fetch(`${APP_CONFIG.API_URL}?action=pests&token=${encodeURIComponent(APP_CONFIG.API_TOKEN)}`);const a=await r.json();if(!a.ok)throw new Error(a.message||'Falha');alert(`Conexão OK. ${a.data?.length||0} pragas recebidas.`)}catch(e){alert('Falha na conexão: '+e.message)}};
 $('gpsBtn').onclick=()=>navigator.geolocation.getCurrentPosition(p=>$('gps').value=`${p.coords.latitude.toFixed(6)}, ${p.coords.longitude.toFixed(6)}`,e=>alert('Não foi possível obter o GPS: '+e.message),{enableHighAccuracy:true});
 $('propertyForm').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const id=uid();const rec={id,ID_Propriedade:id.slice(0,8),...data,UUID:id,Data_Criacao:new Date().toISOString(),Data_Sincronizacao:'',Status_Registro:'PENDENTE',Versao:1,_source:'local'};await put('properties',rec);await put('queue',{id,type:'property',recordId:id,createdAt:new Date().toISOString(),attempts:0});e.target.reset();await dashboard();alert('Propriedade salva neste aparelho.');go('home')};
-async function loadProperties(){
+async function loadPests(){
 
-  const ps = await all('properties');
+  const pests = await all('pests');
 
-  const select = $('propertySelect');
+  pestMap = {};
 
-  select.innerHTML =
-    '<option value="">Selecione…</option>';
+  pests.forEach(p => {
 
-  ps.sort((a,b)=>
-    String(a.Nome_Propriedade || '')
-      .localeCompare(
-        String(b.Nome_Propriedade || '')
-      )
-  );
+    const nome =
+      String(p.Nome_Da_Praga || '').trim();
 
-  ps.forEach(p => {
+    if (!nome) return;
 
-    const option = new Option(
-      `${p.Nome_Propriedade || p.ID_Propriedade} — ${p.Produtor_Responsável || ''}`,
-      p.ID_Propriedade
+    pestMap[nome] = {
+
+      legislacao:
+        p['Legislação'] || '',
+
+      programa:
+        p.Programa_Tecnico || '',
+
+      culturas:
+        String(p.Cultura_Hospedeira || '')
+          .split(/[,;]+/)
+          .map(c => c.trim().toLowerCase())
+          .filter(Boolean)
+
+    };
+
+  });
+
+  atualizarPragasPorCultura();
+}
+
+
+function atualizarPragasPorCultura(){
+
+  const box =
+    $('pestOptions');
+
+  if (!box) return;
+
+  box.innerHTML = '';
+
+  const culturasSelecionadas =
+    [...document.querySelectorAll(
+      '#cultureOptions input[name="Cultura_Afetada"]:checked'
+    )]
+    .map(input =>
+      String(input.value)
+        .trim()
+        .toLowerCase()
     );
 
-    select.add(option);
+
+  // Limpa os campos automáticos
+  $('legislation').value = '';
+  $('programaTecnico').value = '';
+
+
+  if (!culturasSelecionadas.length) {
+
+    box.innerHTML =
+      '<small>Selecione primeiro a cultura afetada.</small>';
+
+    return;
+  }
+
+
+  const pragasCompativeis =
+    Object.entries(pestMap)
+      .filter(([nome, dados]) =>
+        dados.culturas.some(cultura =>
+          culturasSelecionadas.includes(cultura)
+        )
+      )
+      .sort((a,b) =>
+        a[0].localeCompare(b[0], 'pt-BR')
+      );
+
+
+  if (!pragasCompativeis.length) {
+
+    box.innerHTML =
+      '<small>Nenhuma praga cadastrada para a cultura selecionada.</small>';
+
+    return;
+  }
+
+
+  pragasCompativeis.forEach(([nome]) => {
+
+    const label =
+      document.createElement('label');
+
+    label.className =
+      'check-option';
+
+
+    const checkbox =
+      document.createElement('input');
+
+    checkbox.type =
+      'checkbox';
+
+    checkbox.name =
+      'Praga_Alvo';
+
+    checkbox.value =
+      nome;
+
+    checkbox.onchange =
+      preencherDadosPragasSelecionadas;
+
+
+    label.appendChild(checkbox);
+
+    label.appendChild(
+      document.createTextNode(
+        ' ' + nome
+      )
+    );
+
+    box.appendChild(label);
+
   });
 
 
-  // Quando selecionar uma propriedade,
-  // carrega somente as culturas cadastradas nela.
-  select.onchange = async () => {
+  // Se houver apenas uma praga possível,
+  // marca automaticamente.
+  if (pragasCompativeis.length === 1) {
 
-    const selectedId = select.value;
-
-    const box = $('cultureOptions');
-
-    box.innerHTML = '';
-
-    if (!selectedId) {
-      box.innerHTML =
-        '<small>Selecione primeiro uma propriedade.</small>';
-      return;
-    }
-
-
-    const propriedades =
-      await all('properties');
-
-    const propriedade =
-      propriedades.find(p =>
-        String(p.ID_Propriedade) ===
-        String(selectedId)
+    const unico =
+      box.querySelector(
+        'input[name="Praga_Alvo"]'
       );
 
+    if (unico) {
+      unico.checked = true;
+      preencherDadosPragasSelecionadas();
+    }
 
-    if (!propriedade) {
-      box.innerHTML =
-        '<small>Propriedade não encontrada.</small>';
-      return;
+  }
+
+}
+
+
+function preencherDadosPragasSelecionadas(){
+
+  const pragasSelecionadas =
+    [...document.querySelectorAll(
+      '#pestOptions input[name="Praga_Alvo"]:checked'
+    )]
+    .map(input => input.value);
+
+
+  const programas = [];
+  const legislacoes = [];
+
+
+  pragasSelecionadas.forEach(nome => {
+
+    const dados =
+      pestMap[nome];
+
+    if (!dados) return;
+
+
+    if (
+      dados.programa &&
+      !programas.includes(dados.programa)
+    ) {
+      programas.push(dados.programa);
     }
 
 
-    const culturas =
-      String(
-        propriedade.Culturas_Cultivadas || ''
-      )
-      .split(/[,;]+/)
-      .map(c => c.trim())
-      .filter(Boolean);
-
-
-    if (!culturas.length) {
-      box.innerHTML =
-        '<small>Esta propriedade não possui culturas cadastradas.</small>';
-      return;
+    if (
+      dados.legislacao &&
+      !legislacoes.includes(dados.legislacao)
+    ) {
+      legislacoes.push(dados.legislacao);
     }
 
-
-    // Remove duplicidades.
-    const culturasUnicas =
-      [...new Set(culturas)];
+  });
 
 
-    culturasUnicas.forEach(cultura => {
+  $('programaTecnico').value =
+    programas.join(', ');
 
-      const label =
-        document.createElement('label');
-
-      label.className =
-        'check-option';
-
-
-      const checkbox =
-        document.createElement('input');
-
-      checkbox.type =
-        'checkbox';
-
-      checkbox.name =
-        'Cultura_Afetada';
-
-      checkbox.value =
-        cultura;
-      
-      checkbox.onchange =
-        atualizarPragasPorCultura;
-
-      label.appendChild(checkbox);
-
-      label.appendChild(
-        document.createTextNode(
-          ' ' + cultura
-        )
-      );
-
-      box.appendChild(label);
-    });
-
-  };
+  $('legislation').value =
+    legislacoes.join(' | ');
 
 }
 async function loadPests(){
