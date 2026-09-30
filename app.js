@@ -999,16 +999,18 @@ async function syncAll(){
   }
 
 
-  const btn=
-    $('syncBtn');
+const btn=
+  $('syncBtn');
 
-  btn.disabled=true;
+const old=
+  btn.textContent;
 
-  const old=
-    btn.textContent;
+btn.disabled=true;
+btn.textContent='⏳ Sincronizando...';
+btn.classList.add('syncing');
 
-  let ok=0;
-  let fail=0;
+let ok=0;
+let fail=0;
 
 
   try{
@@ -1216,24 +1218,43 @@ async function syncAll(){
     await dashboard();
 
 
-    alert(
-      `Sincronização concluída. ${ok} envio(s) confirmado(s), ${fail} com erro. Cadastros offline atualizados.`
-    );
+    if(fail===0){
+
+  btn.textContent='✅ Sincronizado!';
+
+  alert(
+    `Sincronização concluída. ${ok} envio(s) confirmado(s). Cadastros offline atualizados.`
+  );
+
+}else{
+
+  btn.textContent='⚠️ Sincronização parcial';
+
+  alert(
+    `Sincronização concluída com pendências. ${ok} envio(s) confirmado(s) e ${fail} com erro.`
+  );
+
+}
 
 
   }catch(e){
 
-    alert(
-      'Falha na sincronização: '+e.message
-    );
+  btn.textContent='❌ Erro ao sincronizar';
 
+  alert(
+    'Falha na sincronização: '+e.message
+  );
 
   }finally{
+
+  btn.classList.remove('syncing');
+
+  setTimeout(()=>{
 
     btn.disabled=false;
     btn.textContent=old;
 
-  }
+  },2000);
 
 }
 
