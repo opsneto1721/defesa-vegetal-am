@@ -1258,6 +1258,8 @@ let fail=0;
 
 }
 
+}  
+
 
 $('syncBtn').onclick=
   syncAll;
