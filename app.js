@@ -131,7 +131,23 @@ async function loadProperties(){
 
 }
 async function loadPests(){const pests=await all('pests');pestMap={};$('pestSelect').innerHTML='<option value="">Selecione…</option>';pests.sort((a,b)=>String(a.Nome_Da_Praga).localeCompare(String(b.Nome_Da_Praga))).forEach(p=>{pestMap[p.Nome_Da_Praga]=p['Legislação']||'';$('pestSelect').add(new Option(p.Nome_Da_Praga,p.Nome_Da_Praga))});$('pestSelect').onchange=()=>$('legislation').value=pestMap[$('pestSelect').value]||''}
-$('inspectionForm').onsubmit=async e=>{e.preventDefault();const fd=new FormData(e.target),data={};for(const [k,v] of fd)if(k!=='Foto_Evidenciada')data[k]=v;const file=fd.get('Foto_Evidenciada');const id=uid();const rec={id,ID_Fiscalização:'TF_'+id.slice(0,8),...data,Foto_Evidenciada:file&&file.size?file:null,UUID:id,Data_Hora:new Date().toISOString(),Data_Criacao:new Date().toISOString(),Data_Sincronizacao:'',Status_Registro:'PENDENTE',Versao:1,_source:'local'};await put('inspections',rec);await put('queue',{id,type:'inspection',recordId:id,createdAt:new Date().toISOString(),attempts:0});e.target.reset();$('legislation').value='';await dashboard();alert('Fiscalização salva offline.');go('home')};
+$('inspectionForm').onsubmit=async e=>{e.preventDefault();const fd = new FormData(e.target);
+const data = {};
+
+for (const [k,v] of fd) {
+
+  if (
+    k !== 'Foto_Evidenciada' &&
+    k !== 'Cultura_Afetada'
+  ) {
+    data[k] = v;
+  }
+
+}
+
+data.Cultura_Afetada =
+  fd.getAll('Cultura_Afetada').join(', ');
+const file=fd.get('Foto_Evidenciada');const id=uid();const rec={id,ID_Fiscalização:'TF_'+id.slice(0,8),...data,Foto_Evidenciada:file&&file.size?file:null,UUID:id,Data_Hora:new Date().toISOString(),Data_Criacao:new Date().toISOString(),Data_Sincronizacao:'',Status_Registro:'PENDENTE',Versao:1,_source:'local'};await put('inspections',rec);await put('queue',{id,type:'inspection',recordId:id,createdAt:new Date().toISOString(),attempts:0});e.target.reset();$('legislation').value='';await dashboard();alert('Fiscalização salva offline.');go('home')};
 async function renderRecords(){const ps=await all('properties'),ins=await all('inspections');$('recordList').innerHTML=[...ins.map(x=>`<div class='card ${x.Status_Registro==='SINCRONIZADO'?'synced':''}'><b>${x.ID_Fiscalização}</b><br>${x.Praga_Alvo||'Sem praga'} · ${fmtDate(x.Data_Hora)}<br><small>${x.Status_Registro||'CADASTRO CENTRAL'}</small></div>`),...ps.map(x=>`<div class='card ${x.Status_Registro==='SINCRONIZADO'?'synced':''}'><b>${x.Nome_Propriedade||x.ID_Propriedade}</b><br>${x.Produtor_Responsável||''}<br><small>${x.Status_Registro||'CADASTRO CENTRAL'}</small></div>`)].join('')||'<p>Nenhum registro local.</p>'}
 function blobToDataURL(blob){return new Promise((ok,fail)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=()=>fail(r.error);r.readAsDataURL(blob)})}
 async function serializableRecord(rec){const copy={...rec};delete copy.id;delete copy._source;if(copy.Foto_Evidenciada instanceof Blob)copy.Foto_Evidenciada=await blobToDataURL(copy.Foto_Evidenciada);else if(!String(copy.Foto_Evidenciada||'').startsWith('data:'))copy.Foto_Evidenciada=null;return copy}
