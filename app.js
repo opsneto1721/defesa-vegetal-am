@@ -114,7 +114,9 @@ async function loadProperties(){
 
       checkbox.value =
         cultura;
-
+      
+      checkbox.onchange =
+        atualizarPragasPorCultura;
 
       label.appendChild(checkbox);
 
@@ -130,7 +132,122 @@ async function loadProperties(){
   };
 
 }
-async function loadPests(){const pests=await all('pests');pestMap={};$('pestSelect').innerHTML='<option value="">Selecione…</option>';pests.sort((a,b)=>String(a.Nome_Da_Praga).localeCompare(String(b.Nome_Da_Praga))).forEach(p=>{pestMap[p.Nome_Da_Praga]=p['Legislação']||'';$('pestSelect').add(new Option(p.Nome_Da_Praga,p.Nome_Da_Praga))});$('pestSelect').onchange=()=>$('legislation').value=pestMap[$('pestSelect').value]||''}
+async function loadPests(){
+
+  const pests = await all('pests');
+
+  pestMap = {};
+
+  pests.forEach(p => {
+
+    const nome =
+      String(p.Nome_Da_Praga || '').trim();
+
+    if (!nome) return;
+
+    pestMap[nome] = {
+      legislacao:
+        p['Legislação'] || '',
+
+      programa:
+        p.Programa_Tecnico || '',
+
+      culturas:
+        String(p.Cultura_Hospedeira || '')
+          .split(/[,;]+/)
+          .map(c => c.trim().toLowerCase())
+          .filter(Boolean)
+    };
+
+  });
+
+  atualizarPragasPorCultura();
+
+}
+function atualizarPragasPorCultura(){
+
+  const pestSelect =
+    $('pestSelect');
+
+  const legislation =
+    $('legislation');
+
+  const programa =
+    $('programaTecnico');
+
+  const culturasSelecionadas =
+    [...document.querySelectorAll(
+      '#cultureOptions input[name="Cultura_Afetada"]:checked'
+    )]
+    .map(input =>
+      String(input.value)
+        .trim()
+        .toLowerCase()
+    );
+
+
+  pestSelect.innerHTML =
+    '<option value="">Selecione…</option>';
+
+  legislation.value = '';
+  programa.value = '';
+
+
+  if (!culturasSelecionadas.length) {
+    return;
+  }
+
+
+  const pragasCompativeis =
+    Object.entries(pestMap)
+      .filter(([nome, dados]) =>
+        dados.culturas.some(cultura =>
+          culturasSelecionadas.includes(cultura)
+        )
+      )
+      .sort((a,b) =>
+        a[0].localeCompare(b[0])
+      );
+
+
+  pragasCompativeis.forEach(([nome]) => {
+
+    pestSelect.add(
+      new Option(nome, nome)
+    );
+
+  });
+
+
+  // Se existir apenas uma praga possível,
+  // seleciona automaticamente.
+  if (pragasCompativeis.length === 1) {
+
+    pestSelect.value =
+      pragasCompativeis[0][0];
+
+    preencherDadosPraga();
+
+  }
+}
+function preencherDadosPraga(){
+
+  const nome =
+    $('pestSelect').value;
+
+  const dados =
+    pestMap[nome];
+
+  $('legislation').value =
+    dados?.legislacao || '';
+
+  $('programaTecnico').value =
+    dados?.programa || '';
+
+}
+$('pestSelect').onchange =
+  preencherDadosPraga;
+
 $('inspectionForm').onsubmit=async e=>{e.preventDefault();const fd = new FormData(e.target);
 const data = {};
 
