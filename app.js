@@ -328,13 +328,19 @@ for (const [k,v] of fd) {
 
   if (
     k !== 'Foto_Evidenciada' &&
-    k !== 'Cultura_Afetada'
+    k !== 'Cultura_Afetada' &&
+    k !== 'Praga_Alvo'
   ) {
     data[k] = v;
   }
 
 }
 
+data.Cultura_Afetada =
+  fd.getAll('Cultura_Afetada').join(', ');
+
+data.Praga_Alvo =
+  fd.getAll('Praga_Alvo').join(', ');
 data.Cultura_Afetada =
   fd.getAll('Cultura_Afetada').join(', ');
 const file=fd.get('Foto_Evidenciada');const id=uid();const rec={id,ID_Fiscalização:'TF_'+id.slice(0,8),...data,Foto_Evidenciada:file&&file.size?file:null,UUID:id,Data_Hora:new Date().toISOString(),Data_Criacao:new Date().toISOString(),Data_Sincronizacao:'',Status_Registro:'PENDENTE',Versao:1,_source:'local'};await put('inspections',rec);await put('queue',{id,type:'inspection',recordId:id,createdAt:new Date().toISOString(),attempts:0});e.target.reset();$('legislation').value='';await dashboard();alert('Fiscalização salva offline.');go('home')};
