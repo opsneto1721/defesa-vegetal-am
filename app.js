@@ -12,7 +12,124 @@ $('settingsForm').onsubmit=e=>{e.preventDefault();let url=$('apiUrl').value.trim
 $('testApiBtn').onclick=async()=>{if(!$('apiUrl').value||!$('apiToken').value)return alert('Informe URL e token.');APP_CONFIG.save($('apiUrl').value.trim().replace(/\/+$/,''),$('apiToken').value);try{const r=await fetch(`${APP_CONFIG.API_URL}?action=pests&token=${encodeURIComponent(APP_CONFIG.API_TOKEN)}`);const a=await r.json();if(!a.ok)throw new Error(a.message||'Falha');alert(`Conexão OK. ${a.data?.length||0} pragas recebidas.`)}catch(e){alert('Falha na conexão: '+e.message)}};
 $('gpsBtn').onclick=()=>navigator.geolocation.getCurrentPosition(p=>$('gps').value=`${p.coords.latitude.toFixed(6)}, ${p.coords.longitude.toFixed(6)}`,e=>alert('Não foi possível obter o GPS: '+e.message),{enableHighAccuracy:true});
 $('propertyForm').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const id=uid();const rec={id,ID_Propriedade:id.slice(0,8),...data,UUID:id,Data_Criacao:new Date().toISOString(),Data_Sincronizacao:'',Status_Registro:'PENDENTE',Versao:1,_source:'local'};await put('properties',rec);await put('queue',{id,type:'property',recordId:id,createdAt:new Date().toISOString(),attempts:0});e.target.reset();await dashboard();alert('Propriedade salva neste aparelho.');go('home')};
-async function loadProperties(){const ps=await all('properties');$('propertySelect').innerHTML='<option value="">Selecione…</option>';ps.sort((a,b)=>String(a.Nome_Propriedade||'').localeCompare(String(b.Nome_Propriedade||''))).forEach(p=>$('propertySelect').add(new Option(`${p.Nome_Propriedade||p.ID_Propriedade} — ${p.Produtor_Responsável||''}`,p.ID_Propriedade)))}
+async function loadProperties(){
+
+  const ps = await all('properties');
+
+  const select = $('propertySelect');
+
+  select.innerHTML =
+    '<option value="">Selecione…</option>';
+
+  ps.sort((a,b)=>
+    String(a.Nome_Propriedade || '')
+      .localeCompare(
+        String(b.Nome_Propriedade || '')
+      )
+  );
+
+  ps.forEach(p => {
+
+    const option = new Option(
+      `${p.Nome_Propriedade || p.ID_Propriedade} — ${p.Produtor_Responsável || ''}`,
+      p.ID_Propriedade
+    );
+
+    select.add(option);
+  });
+
+
+  // Quando selecionar uma propriedade,
+  // carrega somente as culturas cadastradas nela.
+  select.onchange = async () => {
+
+    const selectedId = select.value;
+
+    const box = $('cultureOptions');
+
+    box.innerHTML = '';
+
+    if (!selectedId) {
+      box.innerHTML =
+        '<small>Selecione primeiro uma propriedade.</small>';
+      return;
+    }
+
+
+    const propriedades =
+      await all('properties');
+
+    const propriedade =
+      propriedades.find(p =>
+        String(p.ID_Propriedade) ===
+        String(selectedId)
+      );
+
+
+    if (!propriedade) {
+      box.innerHTML =
+        '<small>Propriedade não encontrada.</small>';
+      return;
+    }
+
+
+    const culturas =
+      String(
+        propriedade.Culturas_Cultivadas || ''
+      )
+      .split(/[,;]+/)
+      .map(c => c.trim())
+      .filter(Boolean);
+
+
+    if (!culturas.length) {
+      box.innerHTML =
+        '<small>Esta propriedade não possui culturas cadastradas.</small>';
+      return;
+    }
+
+
+    // Remove duplicidades.
+    const culturasUnicas =
+      [...new Set(culturas)];
+
+
+    culturasUnicas.forEach(cultura => {
+
+      const label =
+        document.createElement('label');
+
+      label.className =
+        'check-option';
+
+
+      const checkbox =
+        document.createElement('input');
+
+      checkbox.type =
+        'checkbox';
+
+      checkbox.name =
+        'Cultura_Afetada';
+
+      checkbox.value =
+        cultura;
+
+
+      label.appendChild(checkbox);
+
+      label.appendChild(
+        document.createTextNode(
+          ' ' + cultura
+        )
+      );
+
+      box.appendChild(label);
+    });
+
+  };
+
+}
 async function loadPests(){const pests=await all('pests');pestMap={};$('pestSelect').innerHTML='<option value="">Selecione…</option>';pests.sort((a,b)=>String(a.Nome_Da_Praga).localeCompare(String(b.Nome_Da_Praga))).forEach(p=>{pestMap[p.Nome_Da_Praga]=p['Legislação']||'';$('pestSelect').add(new Option(p.Nome_Da_Praga,p.Nome_Da_Praga))});$('pestSelect').onchange=()=>$('legislation').value=pestMap[$('pestSelect').value]||''}
 $('inspectionForm').onsubmit=async e=>{e.preventDefault();const fd=new FormData(e.target),data={};for(const [k,v] of fd)if(k!=='Foto_Evidenciada')data[k]=v;const file=fd.get('Foto_Evidenciada');const id=uid();const rec={id,ID_Fiscalização:'TF_'+id.slice(0,8),...data,Foto_Evidenciada:file&&file.size?file:null,UUID:id,Data_Hora:new Date().toISOString(),Data_Criacao:new Date().toISOString(),Data_Sincronizacao:'',Status_Registro:'PENDENTE',Versao:1,_source:'local'};await put('inspections',rec);await put('queue',{id,type:'inspection',recordId:id,createdAt:new Date().toISOString(),attempts:0});e.target.reset();$('legislation').value='';await dashboard();alert('Fiscalização salva offline.');go('home')};
 async function renderRecords(){const ps=await all('properties'),ins=await all('inspections');$('recordList').innerHTML=[...ins.map(x=>`<div class='card ${x.Status_Registro==='SINCRONIZADO'?'synced':''}'><b>${x.ID_Fiscalização}</b><br>${x.Praga_Alvo||'Sem praga'} · ${fmtDate(x.Data_Hora)}<br><small>${x.Status_Registro||'CADASTRO CENTRAL'}</small></div>`),...ps.map(x=>`<div class='card ${x.Status_Registro==='SINCRONIZADO'?'synced':''}'><b>${x.Nome_Propriedade||x.ID_Propriedade}</b><br>${x.Produtor_Responsável||''}<br><small>${x.Status_Registro||'CADASTRO CENTRAL'}</small></div>`)].join('')||'<p>Nenhum registro local.</p>'}
