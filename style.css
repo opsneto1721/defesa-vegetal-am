@@ -25,3 +25,19 @@
   padding: 0;
   flex: 0 0 18px;
 }
+/* Botão durante a sincronização */
+#syncBtn.syncing {
+  opacity: 0.75;
+  cursor: wait;
+  animation: syncPulse 1s ease-in-out infinite;
+}
+
+@keyframes syncPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(0.98);
+  }
+}
