@@ -2353,21 +2353,1004 @@ const CadastrosModule = {
 
 
     document
+  .getElementById(
+    'newCulture'
+  )
+  .addEventListener(
+    'click',
+    () => this.showCultureForm()
+  );
+  },
+  /* =======================================================
+     CADASTRO DE CULTURA
+  ======================================================= */
+
+  showCultureForm(existing = null) {
+
+    if (!this.currentProperty) {
+
+      App.showMessage(
+        'Selecione uma propriedade antes de cadastrar a cultura.',
+        'warning'
+      );
+
+      return;
+    }
+
+    const workspace =
+      document.getElementById(
+        'cadastroWorkspace'
+      );
+
+    const culture =
+      existing || {};
+
+    const cultureCatalog =
+      this.getInitialCultureCatalog();
+
+    workspace.innerHTML = `
+      <div class="form-card">
+
+        <div class="form-heading">
+
+          <div>
+
+            <h3>
+              ${
+                existing
+                  ? 'Editar cultura'
+                  : 'Nova cultura'
+              }
+            </h3>
+
+            <p>
+              Propriedade:
+              <strong>
+                ${this.escapeHTML(
+                  this.currentProperty
+                    .Nome_Propriedade || ''
+                )}
+              </strong>
+            </p>
+
+          </div>
+
+          <span class="step-badge">
+            Etapa 3 de 3
+          </span>
+
+        </div>
+
+
+        <form id="cultureForm">
+
+          <input
+            type="hidden"
+            id="cultureLocalId"
+            value="${this.escapeHTML(
+              culture.id || ''
+            )}"
+          >
+
+
+          <div class="form-grid">
+
+            <div class="field field-wide">
+
+              <label for="tipoCultura">
+                Cultura *
+              </label>
+
+              <select
+                id="tipoCultura"
+                required
+              >
+
+                <option value="">
+                  Selecione
+                </option>
+
+                ${cultureCatalog
+                  .map(item => `
+                    <option
+                      value="${item.id}"
+                      ${
+                        culture.ID_Tipo_Cultura ===
+                        item.id
+                          ? 'selected'
+                          : ''
+                      }
+                    >
+                      ${this.escapeHTML(
+                        item.nome
+                      )}
+                    </option>
+                  `)
+                  .join('')}
+
+              </select>
+
+            </div>
+
+
+            <div class="field field-wide">
+
+              <label for="cultivarVariedade">
+                Cultivar / Variedade
+              </label>
+
+              <input
+                id="cultivarVariedade"
+                type="text"
+                maxlength="200"
+                placeholder="Informe quando aplicável"
+                value="${this.escapeHTML(
+                  culture
+                    .Cultivar_Variedade ||
+                  ''
+                )}"
+              >
+
+            </div>
+
+
+            <div class="field">
+
+              <label for="areaPlantada">
+                Área plantada (ha)
+              </label>
+
+              <input
+                id="areaPlantada"
+                type="number"
+                min="0"
+                step="0.0001"
+                inputmode="decimal"
+                value="${this.escapeHTML(
+                  culture
+                    .Area_Plantada_ha ||
+                  ''
+                )}"
+              >
+
+            </div>
+
+
+            <div class="field">
+
+              <label for="areaProducao">
+                Área em produção (ha)
+              </label>
+
+              <input
+                id="areaProducao"
+                type="number"
+                min="0"
+                step="0.0001"
+                inputmode="decimal"
+                value="${this.escapeHTML(
+                  culture
+                    .Area_Producao_ha ||
+                  ''
+                )}"
+              >
+
+            </div>
+
+
+            <div class="field">
+
+              <label for="idadePlantio">
+                Idade do plantio
+              </label>
+
+              <input
+                id="idadePlantio"
+                type="text"
+                maxlength="100"
+                placeholder="Ex.: 3 anos, 18 meses"
+                value="${this.escapeHTML(
+                  culture.Idade_Plantio ||
+                  ''
+                )}"
+              >
+
+            </div>
+
+
+            <div class="field">
+
+              <label for="quantidadePlantas">
+                Quantidade de plantas
+              </label>
+
+              <input
+                id="quantidadePlantas"
+                type="number"
+                min="0"
+                step="1"
+                inputmode="numeric"
+                value="${this.escapeHTML(
+                  culture
+                    .Quantidade_Plantas ||
+                  ''
+                )}"
+              >
+
+            </div>
+
+
+            <div class="field">
+
+              <label for="espacamentoCultura">
+                Espaçamento
+              </label>
+
+              <input
+                id="espacamentoCultura"
+                type="text"
+                maxlength="100"
+                placeholder="Ex.: 3 x 3 m"
+                value="${this.escapeHTML(
+                  culture.Espacamento ||
+                  ''
+                )}"
+              >
+
+            </div>
+
+
+            <div class="field">
+
+              <label for="producaoEstimada">
+                Produção estimada
+              </label>
+
+              <input
+                id="producaoEstimada"
+                type="number"
+                min="0"
+                step="any"
+                inputmode="decimal"
+                value="${this.escapeHTML(
+                  culture
+                    .Producao_Estimada ||
+                  ''
+                )}"
+              >
+
+            </div>
+
+
+            <div class="field">
+
+              <label for="unidadeProducao">
+                Unidade da produção
+              </label>
+
+              <select id="unidadeProducao">
+
+                <option value="">
+                  Selecione
+                </option>
+
+                ${[
+                  ['KG_ANO', 'kg/ano'],
+                  ['TON_ANO', 't/ano'],
+                  ['SACAS_ANO', 'sacas/ano'],
+                  ['FRUTOS_ANO', 'frutos/ano'],
+                  ['UNIDADES_ANO', 'unidades/ano'],
+                  ['OUTRA', 'Outra']
+                ]
+                  .map(([value, label]) => `
+                    <option
+                      value="${value}"
+                      ${
+                        culture
+                          .Unidade_Producao ===
+                        value
+                          ? 'selected'
+                          : ''
+                      }
+                    >
+                      ${label}
+                    </option>
+                  `)
+                  .join('')}
+
+              </select>
+
+            </div>
+
+
+            <div class="field field-wide">
+
+              <label for="destinoProducao">
+                Destino da produção
+              </label>
+
+              <input
+                id="destinoProducao"
+                type="text"
+                maxlength="300"
+                placeholder="Ex.: mercado local, outro município, outro estado..."
+                value="${this.escapeHTML(
+                  culture
+                    .Destino_Producao ||
+                  ''
+                )}"
+              >
+
+            </div>
+
+
+            <div class="field">
+
+              <label for="origemMaterial">
+                Origem do material de propagação
+              </label>
+
+              <select id="origemMaterial">
+
+                <option value="">
+                  Selecione
+                </option>
+
+                <option
+                  value="PROPRIO"
+                  ${
+                    culture
+                      .Origem_Material_Propagacao ===
+                    'PROPRIO'
+                      ? 'selected'
+                      : ''
+                  }
+                >
+                  Próprio
+                </option>
+
+                <option
+                  value="TERCEIROS"
+                  ${
+                    culture
+                      .Origem_Material_Propagacao ===
+                    'TERCEIROS'
+                      ? 'selected'
+                      : ''
+                  }
+                >
+                  Terceiros
+                </option>
+
+                <option
+                  value="OUTRA"
+                  ${
+                    culture
+                      .Origem_Material_Propagacao ===
+                    'OUTRA'
+                      ? 'selected'
+                      : ''
+                  }
+                >
+                  Outra
+                </option>
+
+              </select>
+
+            </div>
+
+
+            <div class="field">
+
+              <label for="fonteMaterial">
+                Fonte / procedência do material
+              </label>
+
+              <input
+                id="fonteMaterial"
+                type="text"
+                maxlength="300"
+                value="${this.escapeHTML(
+                  culture
+                    .Fonte_Material_Propagacao ||
+                  ''
+                )}"
+              >
+
+            </div>
+
+
+            <div class="field field-wide">
+
+              <label for="observacaoFenologica">
+                Observação fenológica no cadastro
+              </label>
+
+              <textarea
+                id="observacaoFenologica"
+                rows="3"
+                maxlength="500"
+              >${this.escapeHTML(
+                culture
+                  .Observacao_Fenologica_Cadastro ||
+                ''
+              )}</textarea>
+
+            </div>
+
+
+            <div class="field field-wide">
+
+              <label for="observacoesCultura">
+                Observações
+              </label>
+
+              <textarea
+                id="observacoesCultura"
+                rows="4"
+                maxlength="1500"
+              >${this.escapeHTML(
+                culture.Observacoes ||
+                ''
+              )}</textarea>
+
+            </div>
+
+          </div>
+
+
+          <div
+            id="specificCultureNotice"
+            class="subsection"
+            style="display:none"
+          ></div>
+
+
+          <div class="form-actions">
+
+            <button
+              id="cancelCulture"
+              class="btn btn-secondary"
+              type="button"
+            >
+              ← Voltar à propriedade
+            </button>
+
+
+            <button
+              class="btn btn-primary"
+              type="submit"
+            >
+              Salvar cultura
+            </button>
+
+          </div>
+
+        </form>
+
+      </div>
+    `;
+
+
+    const typeSelect =
+      document.getElementById(
+        'tipoCultura'
+      );
+
+
+    typeSelect.addEventListener(
+      'change',
+      () =>
+        this.updateCultureSpecificNotice(
+          typeSelect.value
+        )
+    );
+
+
+    this.updateCultureSpecificNotice(
+      typeSelect.value
+    );
+
+
+    document
       .getElementById(
-        'newCulture'
+        'cancelCulture'
       )
       .addEventListener(
         'click',
-        () => {
-
-          App.showMessage(
-            'Propriedade selecionada. O cadastro de cultura será conectado na Etapa 3.',
-            'info'
-          );
-        }
+        () =>
+          this.showPropertyDetails(
+            this.currentProperty
+          )
       );
+
+
+    document
+      .getElementById(
+        'cultureForm'
+      )
+      .addEventListener(
+        'submit',
+        event =>
+          this.saveCulture(event)
+      );
+
+
+    typeSelect.focus();
   },
 
+
+  /* =======================================================
+     CATÁLOGO INICIAL DE CULTURAS
+
+     Este catálogo fica dentro da aplicação para permitir
+     o cadastro mesmo sem internet.
+
+     Posteriormente será atualizado pela API.
+  ======================================================= */
+
+  getInitialCultureCatalog() {
+
+    return [
+
+      {
+        id: 'CUL001',
+        nome: 'Mandioca'
+      },
+
+      {
+        id: 'CUL002',
+        nome: 'Cacau'
+      },
+
+      {
+        id: 'CUL003',
+        nome: 'Cupuaçu'
+      },
+
+      {
+        id: 'CUL004',
+        nome: 'Banana'
+      },
+
+      {
+        id: 'CUL005',
+        nome: 'Soja'
+      },
+
+      {
+        id: 'CUL006',
+        nome: 'Laranja'
+      },
+
+      {
+        id: 'CUL007',
+        nome: 'Limão'
+      },
+
+      {
+        id: 'CUL008',
+        nome: 'Tangerina'
+      }
+
+    ];
+  },
+
+
+  /* =======================================================
+     AVISO DOS CAMPOS ESPECÍFICOS
+  ======================================================= */
+
+  updateCultureSpecificNotice(
+    cultureId
+  ) {
+
+    const element =
+      document.getElementById(
+        'specificCultureNotice'
+      );
+
+
+    if (!element) {
+      return;
+    }
+
+
+    if (!cultureId) {
+
+      element.style.display =
+        'none';
+
+      element.innerHTML = '';
+
+      return;
+    }
+
+
+    const catalog =
+      this.getInitialCultureCatalog();
+
+
+    const selected =
+      catalog.find(
+        item =>
+          item.id === cultureId
+      );
+
+
+    if (!selected) {
+
+      element.style.display =
+        'none';
+
+      return;
+    }
+
+
+    element.style.display =
+      'block';
+
+
+    element.innerHTML = `
+      <h4>
+        Dados específicos —
+        ${this.escapeHTML(
+          selected.nome
+        )}
+      </h4>
+
+      <div class="empty-state">
+        Os dados gerais desta cultura
+        serão salvos agora.
+
+        Os campos específicos de
+        ${this.escapeHTML(
+          selected.nome
+        )}
+        serão carregados nesta área
+        na próxima etapa de configuração.
+      </div>
+    `;
+  },
+
+
+  /* =======================================================
+     SALVAR CULTURA
+  ======================================================= */
+
+  async saveCulture(event) {
+
+    event.preventDefault();
+
+
+    if (!this.currentProperty) {
+
+      App.showMessage(
+        'Propriedade não selecionada.',
+        'error'
+      );
+
+      return;
+    }
+
+
+    const localId =
+      document
+        .getElementById(
+          'cultureLocalId'
+        )
+        .value ||
+      createUUID();
+
+
+    const previous =
+      await dbGet(
+        'culturas',
+        localId
+      );
+
+
+    const cultureId =
+      document
+        .getElementById(
+          'tipoCultura'
+        )
+        .value;
+
+
+    const catalog =
+      this.getInitialCultureCatalog();
+
+
+    const cultureDefinition =
+      catalog.find(
+        item =>
+          item.id === cultureId
+      );
+
+
+    if (!cultureDefinition) {
+
+      App.showMessage(
+        'Selecione uma cultura.',
+        'warning'
+      );
+
+      return;
+    }
+
+
+    const areaPlantadaValue =
+      document
+        .getElementById(
+          'areaPlantada'
+        )
+        .value;
+
+
+    const areaProducaoValue =
+      document
+        .getElementById(
+          'areaProducao'
+        )
+        .value;
+
+
+    const areaPlantada =
+      areaPlantadaValue === ''
+        ? ''
+        : Number(
+            areaPlantadaValue
+          );
+
+
+    const areaProducao =
+      areaProducaoValue === ''
+        ? ''
+        : Number(
+            areaProducaoValue
+          );
+
+
+    if (
+      areaPlantada !== '' &&
+      areaProducao !== '' &&
+      areaProducao >
+        areaPlantada
+    ) {
+
+      App.showMessage(
+        'A área em produção não pode ser maior que a área plantada.',
+        'warning'
+      );
+
+      return;
+    }
+
+
+    const quantityValue =
+      document
+        .getElementById(
+          'quantidadePlantas'
+        )
+        .value;
+
+
+    const productionValue =
+      document
+        .getElementById(
+          'producaoEstimada'
+        )
+        .value;
+
+
+    const record = {
+
+      ...(previous || {}),
+
+      id:
+        localId,
+
+      ID_Cultura:
+        previous?.ID_Cultura ||
+        '',
+
+
+      /*
+        Vínculo local permanente.
+      */
+      ID_Propriedade_Local:
+        this.currentProperty.id,
+
+
+      /*
+        Será preenchido com o ID oficial
+        quando a propriedade estiver
+        sincronizada.
+      */
+      ID_Propriedade:
+        this.currentProperty
+          .ID_Propriedade ||
+        previous?.ID_Propriedade ||
+        '',
+
+
+      ID_Tipo_Cultura:
+        cultureId,
+
+
+      /*
+        Campo somente local para facilitar
+        a interface enquanto os catálogos
+        centrais ainda não foram sincronizados.
+      */
+      Nome_Cultura_Local:
+        cultureDefinition.nome,
+
+
+      Cultivar_Variedade:
+        document
+          .getElementById(
+            'cultivarVariedade'
+          )
+          .value
+          .trim(),
+
+
+      Area_Plantada_ha:
+        areaPlantada,
+
+
+      Area_Producao_ha:
+        areaProducao,
+
+
+      Idade_Plantio:
+        document
+          .getElementById(
+            'idadePlantio'
+          )
+          .value
+          .trim(),
+
+
+      Quantidade_Plantas:
+        quantityValue === ''
+          ? ''
+          : Number(
+              quantityValue
+            ),
+
+
+      Espacamento:
+        document
+          .getElementById(
+            'espacamentoCultura'
+          )
+          .value
+          .trim(),
+
+
+      Producao_Estimada:
+        productionValue === ''
+          ? ''
+          : Number(
+              productionValue
+            ),
+
+
+      Unidade_Producao:
+        document
+          .getElementById(
+            'unidadeProducao'
+          )
+          .value,
+
+
+      Destino_Producao:
+        document
+          .getElementById(
+            'destinoProducao'
+          )
+          .value
+          .trim(),
+
+
+      Origem_Material_Propagacao:
+        document
+          .getElementById(
+            'origemMaterial'
+          )
+          .value,
+
+
+      Fonte_Material_Propagacao:
+        document
+          .getElementById(
+            'fonteMaterial'
+          )
+          .value
+          .trim(),
+
+
+      Observacao_Fenologica_Cadastro:
+        document
+          .getElementById(
+            'observacaoFenologica'
+          )
+          .value
+          .trim(),
+
+
+      Status:
+        previous?.Status ||
+        'ATIVO',
+
+
+      Data_Cadastro:
+        previous?.Data_Cadastro ||
+        new Date().toISOString(),
+
+
+      Data_Atualizacao:
+        new Date().toISOString(),
+
+
+      ID_Servidor_Cadastro:
+        previous
+          ?.ID_Servidor_Cadastro ||
+        '',
+
+
+      Observacoes:
+        document
+          .getElementById(
+            'observacoesCultura'
+          )
+          .value
+          .trim()
+    };
+
+
+    const saved =
+      await saveLocalRecord(
+        'culturas',
+        record,
+        {
+
+          operation:
+            previous
+              ? 'UPDATE'
+              : 'CREATE',
+
+          dependsOn: [
+            {
+              entity:
+                'propriedades',
+
+              recordId:
+                this.currentProperty.id
+            }
+          ]
+        }
+      );
+
+
+    App.showMessage(
+      navigator.onLine
+        ? `${cultureDefinition.nome} salva. O registro aguardará sincronização.`
+        : `${cultureDefinition.nome} salva neste dispositivo e será sincronizada quando houver internet.`,
+      'success'
+    );
+
+
+    await App.updateSyncStatus();
+
+
+    await this.showPropertyDetails(
+      this.currentProperty
+    );
+  },
 
   /* =======================================================
      MUNICÍPIOS DO AMAZONAS
