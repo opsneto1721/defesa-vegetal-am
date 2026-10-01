@@ -4,7 +4,7 @@
 ========================================================= */
 
 const CACHE_NAME =
-  'defesa-vegetal-am-v2-alpha-5';
+  'defesa-vegetal-am-v2-alpha-6';
 
 const APP_SHELL = [
   './',
