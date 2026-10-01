@@ -949,28 +949,38 @@ const CadastrosModule = {
 
           ${
             properties.length
-              ? properties
-                  .map(property => `
-                    <div class="mini-card">
+  ? properties
+      .map(property => `
+        <button
+          type="button"
+          class="mini-card property-card"
+          data-property-id="${this.escapeHTML(
+            property.id
+          )}"
+        >
 
-                      <strong>
-                        ${this.escapeHTML(
-                          property
-                            .Nome_Propriedade ||
-                          'Propriedade'
-                        )}
-                      </strong>
+          <strong>
+            ${this.escapeHTML(
+              property
+                .Nome_Propriedade ||
+              'Propriedade'
+            )}
+          </strong>
 
-                      <span>
-                        ${this.escapeHTML(
-                          property.Municipio ||
-                          'Município não informado'
-                        )}
-                      </span>
+          <span>
+            ${this.escapeHTML(
+              property.Municipio ||
+              'Município não informado'
+            )}
+          </span>
 
-                    </div>
-                  `)
-                  .join('')
+          <small>
+            Abrir propriedade →
+          </small>
+
+        </button>
+      `)
+      .join('')
 
               : `
                 <div class="empty-state">
@@ -1008,7 +1018,41 @@ const CadastrosModule = {
     'click',
     () => this.showPropertyForm()
   );
+document
+  .querySelectorAll(
+    '.property-card'
+  )
+  .forEach(button => {
 
+    button.addEventListener(
+      'click',
+      async () => {
+
+        const property =
+          await dbGet(
+            'propriedades',
+            button.dataset.propertyId
+          );
+
+        if (!property) {
+
+          App.showMessage(
+            'Não foi possível localizar esta propriedade no banco local.',
+            'warning'
+          );
+
+          return;
+        }
+
+        this.currentProperty =
+          property;
+
+        await this.showPropertyDetails(
+          property
+        );
+      }
+    );
+  });
   },
 
    /* =======================================================
