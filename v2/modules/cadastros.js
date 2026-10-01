@@ -64,7 +64,37 @@ const CadastrosModule = {
             </small>
           </span>
         </button>
+      <button
+        class="action-card"
+        id="btnAdicionarPropriedade"
+        type="button"
+      >
+        <span class="action-icon">🏡</span>
 
+        <span>
+          <strong>Adicionar propriedade</strong>
+          <small>
+            Vincular nova propriedade a um produtor
+          </small>
+        </span>
+      </button>
+
+
+      <button
+        class="action-card"
+        id="btnBuscarPropriedade"
+        type="button"
+      >
+        <span class="action-icon">📍</span>
+
+        <span>
+          <strong>Buscar propriedade</strong>
+          <small>
+            Localizar propriedade cadastrada
+          </small>
+        </span>
+      </button>
+      
       </section>
 
       <section
@@ -86,8 +116,316 @@ const CadastrosModule = {
         'click',
         () => this.showProducerSearch()
       );
-  },
+     
+     document
+  .getElementById(
+    'btnAdicionarPropriedade'
+  )
+  .addEventListener(
+    'click',
+    () => this.showProducerSelectionForProperty()
+  );
 
+
+document
+  .getElementById(
+    'btnBuscarPropriedade'
+  )
+  .addEventListener(
+    'click',
+    () => this.showPropertySearch()
+  );
+  },
+/* =======================================================
+   SELECIONAR PRODUTOR PARA NOVA PROPRIEDADE
+======================================================= */
+
+async showProducerSelectionForProperty() {
+
+  const workspace =
+    document.getElementById(
+      'cadastroWorkspace'
+    );
+
+  workspace.innerHTML = `
+    <div class="form-card">
+
+      <div class="form-heading">
+
+        <div>
+          <h3>Adicionar propriedade</h3>
+
+          <p>
+            Localize o produtor ao qual
+            a nova propriedade será vinculada.
+          </p>
+        </div>
+
+      </div>
+
+
+      <div class="search-row">
+
+        <input
+          id="propertyProducerSearch"
+          type="search"
+          placeholder="Digite nome, CPF ou CNPJ"
+          autocomplete="off"
+        >
+
+        <button
+          id="runPropertyProducerSearch"
+          class="btn btn-primary"
+          type="button"
+        >
+          Buscar
+        </button>
+
+      </div>
+
+
+      <div
+        id="propertyProducerResults"
+        class="search-results"
+      ></div>
+
+
+      <div class="form-actions">
+
+        <button
+          id="createProducerForProperty"
+          class="btn btn-secondary"
+          type="button"
+        >
+          + Cadastrar novo produtor
+        </button>
+
+      </div>
+
+    </div>
+  `;
+
+
+  const input =
+    document.getElementById(
+      'propertyProducerSearch'
+    );
+
+
+  const runSearch =
+    async () => {
+
+      const query =
+        String(input.value || '')
+          .trim()
+          .toLowerCase();
+
+
+      const numericQuery =
+        this.onlyNumbers(query);
+
+
+      const resultsElement =
+        document.getElementById(
+          'propertyProducerResults'
+        );
+
+
+      if (!query) {
+
+        resultsElement.innerHTML = `
+          <div class="empty-state">
+            Digite o nome, CPF ou CNPJ
+            do produtor.
+          </div>
+        `;
+
+        return;
+      }
+
+
+      const producers =
+        await dbGetAll(
+          'produtores'
+        );
+
+
+      const results =
+        producers.filter(
+          producer => {
+
+            const name =
+              String(
+                producer
+                  .Nome_Razao_Social ||
+                ''
+              ).toLowerCase();
+
+
+            const documentNumber =
+              this.onlyNumbers(
+                producer.CPF_CNPJ ||
+                ''
+              );
+
+
+            return (
+              name.includes(query) ||
+              (
+                numericQuery &&
+                documentNumber.includes(
+                  numericQuery
+                )
+              )
+            );
+          }
+        );
+
+
+      if (!results.length) {
+
+        resultsElement.innerHTML = `
+          <div class="empty-state">
+
+            <strong>
+              Nenhum produtor encontrado.
+            </strong>
+
+            <p>
+              Você pode cadastrar um novo
+              produtor para continuar.
+            </p>
+
+          </div>
+        `;
+
+        return;
+      }
+
+
+      resultsElement.innerHTML =
+        results
+          .map(
+            producer => `
+              <button
+                type="button"
+                class="result-card producer-property-result"
+                data-id="${this.escapeHTML(
+                  producer.id
+                )}"
+              >
+
+                <strong>
+                  ${this.escapeHTML(
+                    producer
+                      .Nome_Razao_Social ||
+                    'Sem nome'
+                  )}
+                </strong>
+
+                <span>
+                  ${this.escapeHTML(
+                    this.formatCpfCnpj(
+                      producer.CPF_CNPJ ||
+                      ''
+                    )
+                  )}
+                </span>
+
+                <small>
+                  Selecionar e adicionar
+                  propriedade →
+                </small>
+
+              </button>
+            `
+          )
+          .join('');
+
+
+      resultsElement
+        .querySelectorAll(
+          '.producer-property-result'
+        )
+        .forEach(
+          button => {
+
+            button.addEventListener(
+              'click',
+              async () => {
+
+                const producer =
+                  await dbGet(
+                    'produtores',
+                    button.dataset.id
+                  );
+
+
+                if (!producer) {
+
+                  App.showMessage(
+                    'Produtor não localizado.',
+                    'warning'
+                  );
+
+                  return;
+                }
+
+
+                this.currentProducer =
+                  producer;
+
+
+                this.currentProperty =
+                  null;
+
+
+                this.showPropertyForm();
+              }
+            );
+          }
+        );
+    };
+
+
+  document
+    .getElementById(
+      'runPropertyProducerSearch'
+    )
+    .addEventListener(
+      'click',
+      runSearch
+    );
+
+
+  input.addEventListener(
+    'keydown',
+    event => {
+
+      if (
+        event.key === 'Enter'
+      ) {
+
+        event.preventDefault();
+
+        runSearch();
+      }
+    }
+  );
+
+
+  document
+    .getElementById(
+      'createProducerForProperty'
+    )
+    .addEventListener(
+      'click',
+      () => this.showProducerForm()
+    );
+
+
+  input.focus();
+},
 
   /* =======================================================
      FORMULÁRIO DE PRODUTOR
@@ -3395,7 +3733,398 @@ document
       this.currentProperty
     );
   },
+/* =======================================================
+   BUSCAR PROPRIEDADE
+======================================================= */
 
+async showPropertySearch() {
+
+  const workspace =
+    document.getElementById(
+      'cadastroWorkspace'
+    );
+
+  workspace.innerHTML = `
+    <div class="form-card">
+
+      <div class="form-heading">
+
+        <div>
+          <h3>Buscar propriedade</h3>
+
+          <p>
+            Pesquise por nome da propriedade,
+            produtor, CPF/CNPJ, município
+            ou código oficial.
+          </p>
+        </div>
+
+      </div>
+
+
+      <div class="search-row">
+
+        <input
+          id="propertySearch"
+          type="search"
+          placeholder="Nome, produtor, CPF/CNPJ, município ou código"
+          autocomplete="off"
+        >
+
+        <button
+          id="runPropertySearch"
+          class="btn btn-primary"
+          type="button"
+        >
+          Buscar
+        </button>
+
+      </div>
+
+
+      <div
+        id="propertySearchResults"
+        class="search-results"
+      ></div>
+
+    </div>
+  `;
+
+
+  const input =
+    document.getElementById(
+      'propertySearch'
+    );
+
+
+  const runSearch =
+    async () => {
+
+      const query =
+        String(input.value || '')
+          .trim()
+          .toLowerCase();
+
+
+      const numericQuery =
+        this.onlyNumbers(query);
+
+
+      const resultsElement =
+        document.getElementById(
+          'propertySearchResults'
+        );
+
+
+      if (!query) {
+
+        resultsElement.innerHTML = `
+          <div class="empty-state">
+            Digite alguma informação
+            da propriedade.
+          </div>
+        `;
+
+        return;
+      }
+
+
+      const properties =
+        await dbGetAll(
+          'propriedades'
+        );
+
+
+      const producers =
+        await dbGetAll(
+          'produtores'
+        );
+
+
+      const producerMap =
+        new Map(
+          producers.map(
+            producer => [
+              producer.id,
+              producer
+            ]
+          )
+        );
+
+
+      const results =
+        properties
+          .map(property => {
+
+            const producer =
+              producerMap.get(
+                property.ID_Produtor_Local
+              ) || null;
+
+
+            return {
+              property,
+              producer
+            };
+          })
+          .filter(item => {
+
+            const property =
+              item.property;
+
+
+            const producer =
+              item.producer;
+
+
+            const propertyName =
+              String(
+                property
+                  .Nome_Propriedade ||
+                ''
+              ).toLowerCase();
+
+
+            const municipality =
+              String(
+                property.Municipio ||
+                ''
+              ).toLowerCase();
+
+
+            const officialCode =
+              String(
+                property
+                  .Codigo_Propriedade_Oficial ||
+                ''
+              ).toLowerCase();
+
+
+            const producerName =
+              String(
+                producer
+                  ?.Nome_Razao_Social ||
+                ''
+              ).toLowerCase();
+
+
+            const producerDocument =
+              this.onlyNumbers(
+                producer?.CPF_CNPJ ||
+                ''
+              );
+
+
+            return (
+              propertyName.includes(query) ||
+              municipality.includes(query) ||
+              officialCode.includes(query) ||
+              producerName.includes(query) ||
+              (
+                numericQuery &&
+                producerDocument.includes(
+                  numericQuery
+                )
+              )
+            );
+          })
+          .sort(
+            (a, b) =>
+              String(
+                a.property
+                  .Nome_Propriedade ||
+                ''
+              ).localeCompare(
+                String(
+                  b.property
+                    .Nome_Propriedade ||
+                  ''
+                ),
+                'pt-BR'
+              )
+          );
+
+
+      if (!results.length) {
+
+        resultsElement.innerHTML = `
+          <div class="empty-state">
+
+            <strong>
+              Nenhuma propriedade encontrada.
+            </strong>
+
+            <p>
+              A pesquisa atual consulta
+              os registros armazenados
+              neste dispositivo.
+            </p>
+
+          </div>
+        `;
+
+        return;
+      }
+
+
+      resultsElement.innerHTML =
+        results
+          .map(item => {
+
+            const property =
+              item.property;
+
+
+            const producer =
+              item.producer;
+
+
+            return `
+              <button
+                type="button"
+                class="result-card property-search-result"
+                data-property-id="${this.escapeHTML(
+                  property.id
+                )}"
+              >
+
+                <strong>
+                  ${this.escapeHTML(
+                    property
+                      .Nome_Propriedade ||
+                    'Propriedade sem nome'
+                  )}
+                </strong>
+
+
+                <span>
+                  ${
+                    producer
+                      ? this.escapeHTML(
+                          producer
+                            .Nome_Razao_Social ||
+                          'Produtor não informado'
+                        )
+                      : 'Produtor não localizado'
+                  }
+                </span>
+
+
+                <small>
+                  ${this.escapeHTML(
+                    property.Municipio ||
+                    'Município não informado'
+                  )} - AM
+                  •
+                  ${
+                    property.syncStatus ===
+                    'SINCRONIZADO'
+                      ? '✓ Sincronizada'
+                      : '⏳ Pendente'
+                  }
+                </small>
+
+
+                <small>
+                  Abrir propriedade →
+                </small>
+
+              </button>
+            `;
+          })
+          .join('');
+
+
+      resultsElement
+        .querySelectorAll(
+          '.property-search-result'
+        )
+        .forEach(button => {
+
+          button.addEventListener(
+            'click',
+            async () => {
+
+              const property =
+                await dbGet(
+                  'propriedades',
+                  button.dataset
+                    .propertyId
+                );
+
+
+              if (!property) {
+
+                App.showMessage(
+                  'Propriedade não localizada.',
+                  'warning'
+                );
+
+                return;
+              }
+
+
+              const producer =
+                producerMap.get(
+                  property
+                    .ID_Produtor_Local
+                );
+
+
+              if (!producer) {
+
+                App.showMessage(
+                  'O produtor vinculado a esta propriedade não foi localizado neste dispositivo.',
+                  'warning'
+                );
+
+                return;
+              }
+
+
+              this.currentProducer =
+                producer;
+
+
+              this.currentProperty =
+                property;
+
+
+              await this.showPropertyDetails(
+                property
+              );
+            }
+          );
+        });
+    };
+
+
+  document
+    .getElementById(
+      'runPropertySearch'
+    )
+    .addEventListener(
+      'click',
+      runSearch
+    );
+
+
+  input.addEventListener(
+    'keydown',
+    event => {
+
+      if (event.key === 'Enter') {
+
+        event.preventDefault();
+
+        runSearch();
+      }
+    }
+  );
+
+
+  input.focus();
+},
   /* =======================================================
      MUNICÍPIOS DO AMAZONAS
   ======================================================= */
