@@ -13,6 +13,7 @@ const APP_SHELL = [
   './config.js',
   './db.js',
   './api.js',
+  './modules/cadastros.js',
   './app.js',
   './manifest.json'
 ];
