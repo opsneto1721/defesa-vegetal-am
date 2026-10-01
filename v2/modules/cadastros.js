@@ -2703,7 +2703,180 @@ document
           }
 
         </div>
+cultures.length
 
+  ? cultures
+      .map(culture => {
+
+        const cultureName =
+          culture.Nome_Cultura_Local ||
+          culture.ID_Tipo_Cultura ||
+          'Cultura';
+
+        const isActive =
+          culture.Status !== 'INATIVO';
+
+        const areaPlantada =
+          culture.Area_Plantada_ha !== '' &&
+          culture.Area_Plantada_ha != null
+            ? `${this.escapeHTML(
+                culture.Area_Plantada_ha
+              )} ha`
+            : 'Não informada';
+
+        const areaProducao =
+          culture.Area_Producao_ha !== '' &&
+          culture.Area_Producao_ha != null
+            ? `${this.escapeHTML(
+                culture.Area_Producao_ha
+              )} ha`
+            : 'Não informada';
+
+        const cultivar =
+          culture.Cultivar_Variedade ||
+          'Não informada';
+
+        const idade =
+          culture.Idade_Plantio ||
+          'Não informada';
+
+        const plantas =
+          culture.Quantidade_Plantas ||
+          'Não informada';
+
+        const producao =
+          culture.Producao_Estimada !== '' &&
+          culture.Producao_Estimada != null
+            ? `${
+                this.escapeHTML(
+                  culture.Producao_Estimada
+                )
+              } ${
+                this.escapeHTML(
+                  culture.Unidade_Producao || ''
+                )
+              }`.trim()
+            : 'Não informada';
+
+        return `
+          <div
+            class="mini-card culture-card"
+            data-culture-id="${this.escapeHTML(
+              culture.id
+            )}"
+          >
+
+            <div class="culture-card-header">
+
+              <div>
+                <strong>
+                  ${this.escapeHTML(
+                    cultureName
+                  )}
+                </strong>
+
+                <span class="culture-status">
+                  ${
+                    isActive
+                      ? '● Ativa'
+                      : '○ Inativa'
+                  }
+                </span>
+              </div>
+
+            </div>
+
+
+            <div class="culture-info-grid">
+
+              <div>
+                <small>Cultivar/variedade</small>
+                <strong>
+                  ${this.escapeHTML(cultivar)}
+                </strong>
+              </div>
+
+              <div>
+                <small>Área plantada</small>
+                <strong>${areaPlantada}</strong>
+              </div>
+
+              <div>
+                <small>Área em produção</small>
+                <strong>${areaProducao}</strong>
+              </div>
+
+              <div>
+                <small>Idade do plantio</small>
+                <strong>
+                  ${this.escapeHTML(idade)}
+                </strong>
+              </div>
+
+              <div>
+                <small>Quantidade de plantas</small>
+                <strong>
+                  ${this.escapeHTML(plantas)}
+                </strong>
+              </div>
+
+              <div>
+                <small>Produção estimada</small>
+                <strong>${producao}</strong>
+              </div>
+
+            </div>
+
+
+            <div class="culture-card-actions">
+
+              <button
+                type="button"
+                class="btn btn-secondary culture-details-btn"
+                data-culture-id="${this.escapeHTML(
+                  culture.id
+                )}"
+              >
+                Ver detalhes
+              </button>
+
+              <button
+                type="button"
+                class="btn btn-secondary culture-edit-btn"
+                data-culture-id="${this.escapeHTML(
+                  culture.id
+                )}"
+              >
+                Editar
+              </button>
+
+              <button
+                type="button"
+                class="btn btn-secondary culture-status-btn"
+                data-culture-id="${this.escapeHTML(
+                  culture.id
+                )}"
+              >
+                ${
+                  isActive
+                    ? 'Cancelar cultura'
+                    : 'Reativar'
+                }
+              </button>
+
+            </div>
+
+          </div>
+        `;
+      })
+      .join('')
+
+  : `
+      <div class="empty-state">
+        Nenhuma cultura cadastrada
+        nesta propriedade.
+      </div>
+    `
       </div>
     `;
 
@@ -2742,7 +2915,391 @@ document
     'click',
     () => this.showCultureForm()
   );
+document
+  .querySelectorAll('.culture-details-btn')
+  .forEach(button => {
+    button.addEventListener('click', async () => {
+      const culture = await dbGet(
+        'culturas',
+        button.dataset.cultureId
+      );
+
+      if (!culture) {
+        App.showMessage(
+          'Cultura não encontrada.',
+          'warning'
+        );
+        return;
+      }
+
+      this.showCultureDetails(culture);
+    });
+  });
+
+document
+  .querySelectorAll('.culture-edit-btn')
+  .forEach(button => {
+    button.addEventListener('click', async () => {
+      const culture = await dbGet(
+        'culturas',
+        button.dataset.cultureId
+      );
+
+      if (!culture) {
+        App.showMessage(
+          'Cultura não encontrada.',
+          'warning'
+        );
+        return;
+      }
+
+      this.showCultureForm(culture);
+    });
+  });
+
+document
+  .querySelectorAll('.culture-status-btn')
+  .forEach(button => {
+    button.addEventListener('click', async () => {
+      const culture = await dbGet(
+        'culturas',
+        button.dataset.cultureId
+      );
+
+      if (!culture) {
+        App.showMessage(
+          'Cultura não encontrada.',
+          'warning'
+        );
+        return;
+      }
+
+      await this.toggleCultureStatus(culture);
+    });
+  });
   },
+/* =========================================================
+   DETALHES DA CULTURA
+========================================================= */
+
+showCultureDetails(culture) {
+
+  if (!culture) return;
+
+  const workspace =
+    document.getElementById('cadastroWorkspace');
+
+  const cultureName =
+    culture.Nome_Cultura_Local ||
+    culture.ID_Tipo_Cultura ||
+    'Cultura';
+
+  const valueOrNotInformed = value =>
+    value !== undefined &&
+    value !== null &&
+    value !== ''
+      ? this.escapeHTML(String(value))
+      : 'Não informado';
+
+  const areaValue = value =>
+    value !== undefined &&
+    value !== null &&
+    value !== ''
+      ? `${this.escapeHTML(String(value))} ha`
+      : 'Não informada';
+
+  const production =
+    culture.Producao_Estimada !== undefined &&
+    culture.Producao_Estimada !== null &&
+    culture.Producao_Estimada !== ''
+      ? `${this.escapeHTML(
+          String(culture.Producao_Estimada)
+        )} ${this.escapeHTML(
+          culture.Unidade_Producao || ''
+        )}`.trim()
+      : 'Não informada';
+
+  const isActive =
+    culture.Status !== 'INATIVO';
+
+  workspace.innerHTML = `
+    <div class="form-card">
+
+      <div class="form-heading">
+
+        <div>
+          <h3>
+            ${this.escapeHTML(cultureName)}
+          </h3>
+
+          <p>
+            Detalhes da cultura cadastrada
+          </p>
+        </div>
+
+        <span class="badge">
+          ${
+            isActive
+              ? '● Ativa'
+              : '○ Inativa'
+          }
+        </span>
+
+      </div>
+
+      <div class="summary-grid">
+
+        <div>
+          <small>Cultivar / variedade</small>
+          <strong>
+            ${valueOrNotInformed(
+              culture.Cultivar_Variedade
+            )}
+          </strong>
+        </div>
+
+        <div>
+          <small>Área plantada</small>
+          <strong>
+            ${areaValue(
+              culture.Area_Plantada_ha
+            )}
+          </strong>
+        </div>
+
+        <div>
+          <small>Área em produção</small>
+          <strong>
+            ${areaValue(
+              culture.Area_Producao_ha
+            )}
+          </strong>
+        </div>
+
+        <div>
+          <small>Idade do plantio</small>
+          <strong>
+            ${valueOrNotInformed(
+              culture.Idade_Plantio
+            )}
+          </strong>
+        </div>
+
+        <div>
+          <small>Quantidade de plantas</small>
+          <strong>
+            ${valueOrNotInformed(
+              culture.Quantidade_Plantas
+            )}
+          </strong>
+        </div>
+
+        <div>
+          <small>Espaçamento</small>
+          <strong>
+            ${valueOrNotInformed(
+              culture.Espacamento
+            )}
+          </strong>
+        </div>
+
+        <div>
+          <small>Produção estimada</small>
+          <strong>${production}</strong>
+        </div>
+
+        <div>
+          <small>Destino da produção</small>
+          <strong>
+            ${valueOrNotInformed(
+              culture.Destino_Producao
+            )}
+          </strong>
+        </div>
+
+        <div>
+          <small>Origem do material</small>
+          <strong>
+            ${valueOrNotInformed(
+              culture.Origem_Material_Propagacao
+            )}
+          </strong>
+        </div>
+
+        <div>
+          <small>Fonte do material</small>
+          <strong>
+            ${valueOrNotInformed(
+              culture.Fonte_Material_Propagacao
+            )}
+          </strong>
+        </div>
+
+      </div>
+
+      ${
+        culture.Observacoes
+          ? `
+            <div class="subsection">
+              <h4>Observações</h4>
+              <p>
+                ${this.escapeHTML(
+                  culture.Observacoes
+                )}
+              </p>
+            </div>
+          `
+          : ''
+      }
+
+      <div class="form-actions">
+
+        <button
+          id="backCultureDetails"
+          type="button"
+          class="btn btn-secondary"
+        >
+          ← Voltar
+        </button>
+
+        <button
+          id="editCultureDetails"
+          type="button"
+          class="btn btn-secondary"
+        >
+          Editar cultura
+        </button>
+
+        <button
+          id="toggleCultureDetails"
+          type="button"
+          class="btn btn-primary"
+        >
+          ${
+            isActive
+              ? 'Cancelar cultura'
+              : 'Reativar cultura'
+          }
+        </button>
+
+      </div>
+
+    </div>
+  `;
+
+  document
+    .getElementById('backCultureDetails')
+    .addEventListener(
+      'click',
+      () =>
+        this.showPropertyDetails(
+          this.currentProperty
+        )
+    );
+
+  document
+    .getElementById('editCultureDetails')
+    .addEventListener(
+      'click',
+      () => this.showCultureForm(culture)
+    );
+
+  document
+    .getElementById('toggleCultureDetails')
+    .addEventListener(
+      'click',
+      async () => {
+        await this.toggleCultureStatus(
+          culture
+        );
+      }
+    );
+},
+
+
+/* =========================================================
+   CANCELAR / REATIVAR CULTURA
+========================================================= */
+
+async toggleCultureStatus(culture) {
+
+  if (!culture || !culture.id) {
+    App.showMessage(
+      'Cultura não encontrada.',
+      'warning'
+    );
+    return;
+  }
+
+  const isActive =
+    culture.Status !== 'INATIVO';
+
+  const action =
+    isActive
+      ? 'cancelar'
+      : 'reativar';
+
+  const cultureName =
+    culture.Nome_Cultura_Local ||
+    culture.ID_Tipo_Cultura ||
+    'esta cultura';
+
+  const confirmed = window.confirm(
+    isActive
+      ? `Deseja realmente cancelar ${cultureName}? O histórico será preservado.`
+      : `Deseja reativar ${cultureName}?`
+  );
+
+  if (!confirmed) return;
+
+  try {
+
+    const updated = {
+      ...culture,
+
+      Status:
+        isActive
+          ? 'INATIVO'
+          : 'ATIVO',
+
+      Data_Atualizacao:
+        new Date().toISOString()
+    };
+
+    await saveLocalRecord(
+      'culturas',
+      updated,
+      {
+        operation: 'UPDATE'
+      }
+    );
+
+    await App.updateSyncStatus();
+
+    App.showMessage(
+      isActive
+        ? 'Cultura cancelada. O histórico foi preservado.'
+        : 'Cultura reativada com sucesso.',
+      'success'
+    );
+
+    await this.showPropertyDetails(
+      this.currentProperty
+    );
+
+  } catch (error) {
+
+    console.error(
+      `Erro ao ${action} cultura:`,
+      error
+    );
+
+    App.showMessage(
+      `Não foi possível ${action} a cultura.`,
+      'error'
+    );
+  }
+},
   /* =======================================================
      CADASTRO DE CULTURA
   ======================================================= */
