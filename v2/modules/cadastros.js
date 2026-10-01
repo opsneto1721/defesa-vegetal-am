@@ -1107,3 +1107,261 @@ const CadastrosModule = {
       );
   }
 };
+/* =========================================================
+   MÓDULOS / FORMULÁRIOS
+========================================================= */
+
+.btn-secondary {
+  background: #ffffff;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.module-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.action-card {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  box-shadow: var(--shadow);
+}
+
+.action-card:hover {
+  border-color: var(--primary);
+}
+
+.action-icon {
+  font-size: 30px;
+}
+
+.action-card strong,
+.action-card small {
+  display: block;
+}
+
+.action-card small {
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.workspace {
+  margin-top: 20px;
+}
+
+.form-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px;
+  box-shadow: var(--shadow);
+}
+
+.form-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 18px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.form-heading h3 {
+  margin: 0 0 5px;
+}
+
+.form-heading p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.step-badge {
+  white-space: nowrap;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.field-wide {
+  grid-column: span 2;
+}
+
+.field label {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.field input,
+.field select,
+.field textarea,
+.search-row input {
+  width: 100%;
+  padding: 12px 13px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--text);
+  outline: none;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus,
+.search-row input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+.field small {
+  color: var(--muted);
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.search-row {
+  display: flex;
+  gap: 10px;
+}
+
+.search-results {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.result-card {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 14px;
+  text-align: left;
+}
+
+.result-card:hover {
+  border-color: var(--primary);
+}
+
+.result-card strong,
+.result-card span,
+.result-card small {
+  display: block;
+}
+
+.result-card span {
+  margin-top: 4px;
+}
+
+.result-card small {
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.summary-grid > div {
+  padding: 14px;
+  background: var(--background);
+  border-radius: 12px;
+}
+
+.summary-grid small,
+.summary-grid strong {
+  display: block;
+}
+
+.summary-grid small {
+  color: var(--muted);
+  margin-bottom: 5px;
+}
+
+.subsection {
+  margin-top: 26px;
+}
+
+.subsection h4 {
+  margin-bottom: 12px;
+}
+
+.mini-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+
+.mini-card strong,
+.mini-card span {
+  display: block;
+}
+
+.mini-card span {
+  color: var(--muted);
+  margin-top: 3px;
+  font-size: 14px;
+}
+
+.empty-state {
+  padding: 20px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+
+@media (max-width: 700px) {
+  .module-actions,
+  .form-grid,
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .field-wide {
+    grid-column: span 1;
+  }
+
+  .form-actions,
+  .search-row {
+    flex-direction: column;
+  }
+
+  .form-actions .btn {
+    width: 100%;
+  }
+}
