@@ -2717,20 +2717,16 @@ cultures.length
           culture.Status !== 'INATIVO';
 
         const areaPlantada =
-          culture.Area_Plantada_ha !== '' &&
-          culture.Area_Plantada_ha != null
-            ? `${this.escapeHTML(
-                culture.Area_Plantada_ha
-              )} ha`
-            : 'Não informada';
+           culture.Area_Plantada_ha !== '' &&
+           culture.Area_Plantada_ha != null
+             ? this.escapeHTML(culture.Area_Plantada_ha) + ' ha'
+             : 'Não informada';
 
         const areaProducao =
-          culture.Area_Producao_ha !== '' &&
-          culture.Area_Producao_ha != null
-            ? `${this.escapeHTML(
-                culture.Area_Producao_ha
-              )} ha`
-            : 'Não informada';
+            culture.Area_Producao_ha !== '' &&
+            culture.Area_Producao_ha != null
+             ? this.escapeHTML(culture.Area_Producao_ha) + ' ha'
+             : 'Não informada';
 
         const cultivar =
           culture.Cultivar_Variedade ||
