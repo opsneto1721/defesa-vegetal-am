@@ -2,11 +2,241 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Defesa Vegetal AM - V2</title>
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  >
+
+  <meta
+    name="theme-color"
+    content="#176b3a"
+  >
+
+  <meta
+    name="description"
+    content="Sistema de Defesa Vegetal do Estado do Amazonas"
+  >
+
+  <title>Defesa Vegetal AM</title>
+
+  <link
+    rel="manifest"
+    href="./manifest.json"
+  >
+
+  <link
+    rel="stylesheet"
+    href="./style.css"
+  >
 </head>
+
 <body>
-  <h1>Defesa Vegetal AM - V2</h1>
-  <p>Nova versão em desenvolvimento.</p>
+
+  <header class="app-header">
+    <div class="header-content">
+
+      <div class="brand">
+        <div class="brand-mark">
+          DV
+        </div>
+
+        <div>
+          <h1>Defesa Vegetal AM</h1>
+          <small>
+            Gerência de Defesa Vegetal
+          </small>
+        </div>
+      </div>
+
+      <div
+        id="connectionStatus"
+        class="connection-status"
+      >
+        Verificando...
+      </div>
+
+    </div>
+  </header>
+
+
+  <main>
+
+    <section class="hero">
+
+      <h2>Painel operacional</h2>
+
+      <p>
+        Cadastros, fiscalizações e monitoramento
+        fitossanitário do Estado do Amazonas.
+      </p>
+
+    </section>
+
+
+    <section class="sync-panel">
+
+      <div class="sync-info">
+
+        <strong>
+          Sincronização
+        </strong>
+
+        <span id="syncText">
+          Verificando registros locais...
+        </span>
+
+      </div>
+
+      <button
+        id="syncButton"
+        class="btn btn-primary"
+        type="button"
+      >
+        ↻ Sincronizar agora
+      </button>
+
+    </section>
+
+
+    <section class="menu-grid">
+
+      <article
+        class="menu-card"
+        data-module="fiscalizacoes"
+      >
+        <div class="icon">📋</div>
+
+        <h3>Fiscalizações</h3>
+
+        <p>
+          Realizar nova fiscalização,
+          registrar ocorrências, amostras,
+          providências e evidências.
+        </p>
+
+        <span class="badge">
+          Campo
+        </span>
+      </article>
+
+
+      <article
+        class="menu-card"
+        data-module="cadastros"
+      >
+        <div class="icon">🌱</div>
+
+        <h3>Cadastros</h3>
+
+        <p>
+          Produtores, propriedades,
+          culturas e informações
+          produtivas.
+        </p>
+
+        <span class="badge">
+          Produtor → Propriedade → Cultura
+        </span>
+      </article>
+
+
+      <article
+        class="menu-card"
+        data-module="armadilhas"
+      >
+        <div class="icon">📍</div>
+
+        <h3>Armadilhas</h3>
+
+        <p>
+          Cadastro e monitoramento de
+          armadilhas para detecção de
+          pragas.
+        </p>
+
+        <span class="badge">
+          Mosca-da-Carambola
+        </span>
+      </article>
+
+
+      <article
+        class="menu-card"
+        data-module="viveiros"
+      >
+        <div class="icon">🪴</div>
+
+        <h3>Viveiros</h3>
+
+        <p>
+          Cadastro de viveiros,
+          espécies, documentos e
+          fiscalizações.
+        </p>
+
+        <span class="badge">
+          Material de propagação
+        </span>
+      </article>
+
+
+      <article
+        class="menu-card"
+        data-module="historico"
+      >
+        <div class="icon">🗂️</div>
+
+        <h3>Histórico e documentos</h3>
+
+        <p>
+          Consulte fiscalizações,
+          cadastros, Termos e documentos
+          emitidos anteriormente.
+        </p>
+
+        <span class="badge">
+          Rastreabilidade
+        </span>
+      </article>
+
+
+      <article
+        class="menu-card"
+        data-module="dashboard"
+      >
+        <div class="icon">📊</div>
+
+        <h3>Dashboard</h3>
+
+        <p>
+          Indicadores operacionais,
+          fitossanitários e territoriais
+          da Defesa Vegetal.
+        </p>
+
+        <span class="badge">
+          Gestão
+        </span>
+      </article>
+
+    </section>
+
+  </main>
+
+
+  <footer class="app-footer">
+
+    Defesa Vegetal AM
+    <span id="appVersion"></span>
+
+  </footer>
+
+
+  <script src="./config.js"></script>
+  <script src="./db.js"></script>
+  <script src="./api.js"></script>
+  <script src="./app.js"></script>
+
 </body>
 </html>
