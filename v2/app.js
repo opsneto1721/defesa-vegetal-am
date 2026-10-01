@@ -391,6 +391,10 @@ const App = {
   ======================================================= */
 
   openModule(moduleName) {
+     if (moduleName === 'cadastros') {
+         CadastrosModule.open();
+          return;
+      }
 
     /*
       Nesta primeira etapa, os cartões já são
