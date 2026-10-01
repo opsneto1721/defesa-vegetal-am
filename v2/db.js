@@ -210,7 +210,8 @@ async function saveLocalRecord(storeName, data, options = {}) {
     await addToSyncQueue({
       entity: storeName,
       recordId: record.id,
-      operation: options.operation || 'UPSERT'
+      operation: options.operation || 'UPSERT',
+      dependsOn: options.dependsOn || []
     });
   }
 
