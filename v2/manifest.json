@@ -1,0 +1,12 @@
+{
+  "name": "Defesa Vegetal AM",
+  "short_name": "Defesa Vegetal",
+  "description": "Sistema de Defesa Vegetal do Estado do Amazonas",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f7f5",
+  "theme_color": "#176b3a",
+  "lang": "pt-BR",
+  "orientation": "any"
+}
