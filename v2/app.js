@@ -6,6 +6,7 @@
 const App = {
 
   initialized: false,
+   homeContent: null,
 
   async init() {
 
