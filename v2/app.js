@@ -224,13 +224,6 @@ console.log(
       });
   },
 
-     bindMenuCards() {
-
-    // código que já colocamos...
-
-  },
-
-
   async showHome() {
 
     const main =
