@@ -19,7 +19,7 @@ const CadastrosModule = {
         <button
           class="btn btn-secondary"
           type="button"
-          onclick="location.reload()"
+          onclick="window.location.href='./'"
         >
           ← Início
         </button>
