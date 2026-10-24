@@ -19,7 +19,7 @@ const CadastrosModule = {
         <button
           class="btn btn-secondary"
           type="button"
-          onclick="window.location.href='./index.html'"
+          onclick="App.showHome()"
         >
           ← Início
         </button>
