@@ -173,32 +173,9 @@ console.log(
     }
 
 
-    document
-      .querySelectorAll(
-        '.menu-card'
-      )
-      .forEach(card => {
+    this.bindMenuCards();
 
-        card.setAttribute(
-          'role',
-          'button'
-        );
-
-        card.setAttribute(
-          'tabindex',
-          '0'
-        );
-
-        card.addEventListener(
-          'click',
-          () => {
-
-            this.openModule(
-              card.dataset.module
-            );
-          }
-        );
-
+  },
 
         card.addEventListener(
           'keydown',
