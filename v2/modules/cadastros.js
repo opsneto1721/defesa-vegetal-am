@@ -2660,215 +2660,180 @@ document
 
           ${
             cultures.length
-
               ? cultures
-                  .map(culture => `
-                    <div class="mini-card">
+                  .map(culture => {
 
-                      <strong>
-                        ${
-                          this.escapeHTML(
-                            culture
-                              .Nome_Cultura_Local ||
-                            culture
-                              .ID_Tipo_Cultura ||
-                            'Cultura'
-                          )
-                        }
-                      </strong>
+                    const cultureName =
+                      culture.Nome_Cultura_Local ||
+                      culture.ID_Tipo_Cultura ||
+                      'Cultura';
 
-                      <span>
-                        ${
-                          culture
-                            .Area_Plantada_ha !==
-                          ''
-                            ? `${this.escapeHTML(
-                                culture
-                                  .Area_Plantada_ha
-                              )} ha`
-                            : 'Área não informada'
-                        }
-                      </span>
+                    const isActive =
+                      culture.Status !== 'INATIVO';
 
-                    </div>
-                  `)
+                    const areaPlantada =
+                      culture.Area_Plantada_ha !== '' &&
+                      culture.Area_Plantada_ha != null
+                        ? this.escapeHTML(
+                            culture.Area_Plantada_ha
+                          ) + ' ha'
+                        : 'Não informada';
+
+                    const areaProducao =
+                      culture.Area_Producao_ha !== '' &&
+                      culture.Area_Producao_ha != null
+                        ? this.escapeHTML(
+                            culture.Area_Producao_ha
+                          ) + ' ha'
+                        : 'Não informada';
+
+                    const cultivar =
+                      culture.Cultivar_Variedade ||
+                      'Não informada';
+
+                    const idade =
+                      culture.Idade_Plantio ||
+                      'Não informada';
+
+                    const plantas =
+                      culture.Quantidade_Plantas ||
+                      'Não informada';
+
+                    const producao =
+                      culture.Producao_Estimada !== '' &&
+                      culture.Producao_Estimada != null
+                        ? (
+                            this.escapeHTML(
+                              culture.Producao_Estimada
+                            ) +
+                            ' ' +
+                            this.escapeHTML(
+                              culture.Unidade_Producao || ''
+                            )
+                          ).trim()
+                        : 'Não informada';
+
+                    return `
+                      <div
+                        class="mini-card culture-card"
+                        data-culture-id="${this.escapeHTML(
+                          culture.id
+                        )}"
+                      >
+
+                        <div class="culture-card-header">
+
+                          <div>
+                            <strong>
+                              ${this.escapeHTML(
+                                cultureName
+                              )}
+                            </strong>
+
+                            <span class="culture-status">
+                              ${
+                                isActive
+                                  ? '● Ativa'
+                                  : '○ Inativa'
+                              }
+                            </span>
+                          </div>
+
+                        </div>
+
+                        <div class="culture-info-grid">
+
+                          <div>
+                            <small>Cultivar/variedade</small>
+                            <strong>
+                              ${this.escapeHTML(cultivar)}
+                            </strong>
+                          </div>
+
+                          <div>
+                            <small>Área plantada</small>
+                            <strong>${areaPlantada}</strong>
+                          </div>
+
+                          <div>
+                            <small>Área em produção</small>
+                            <strong>${areaProducao}</strong>
+                          </div>
+
+                          <div>
+                            <small>Idade do plantio</small>
+                            <strong>
+                              ${this.escapeHTML(idade)}
+                            </strong>
+                          </div>
+
+                          <div>
+                            <small>Quantidade de plantas</small>
+                            <strong>
+                              ${this.escapeHTML(plantas)}
+                            </strong>
+                          </div>
+
+                          <div>
+                            <small>Produção estimada</small>
+                            <strong>${producao}</strong>
+                          </div>
+
+                        </div>
+
+                        <div class="culture-card-actions">
+
+                          <button
+                            type="button"
+                            class="btn btn-secondary culture-details-btn"
+                            data-culture-id="${this.escapeHTML(
+                              culture.id
+                            )}"
+                          >
+                            Ver detalhes
+                          </button>
+
+                          <button
+                            type="button"
+                            class="btn btn-secondary culture-edit-btn"
+                            data-culture-id="${this.escapeHTML(
+                              culture.id
+                            )}"
+                          >
+                            Editar
+                          </button>
+
+                          <button
+                            type="button"
+                            class="btn btn-secondary culture-status-btn"
+                            data-culture-id="${this.escapeHTML(
+                              culture.id
+                            )}"
+                          >
+                            ${
+                              isActive
+                                ? 'Cancelar cultura'
+                                : 'Reativar'
+                            }
+                          </button>
+
+                        </div>
+
+                      </div>
+                    `;
+                  })
                   .join('')
 
               : `
-                <div class="empty-state">
-                  Nenhuma cultura cadastrada
-                  nesta propriedade.
-                </div>
-              `
+                  <div class="empty-state">
+                    Nenhuma cultura cadastrada
+                    nesta propriedade.
+                  </div>
+                `
           }
 
         </div>
-cultures.length
 
-  ? cultures
-      .map(culture => {
-
-        const cultureName =
-          culture.Nome_Cultura_Local ||
-          culture.ID_Tipo_Cultura ||
-          'Cultura';
-
-        const isActive =
-          culture.Status !== 'INATIVO';
-
-        const areaPlantada =
-           culture.Area_Plantada_ha !== '' &&
-           culture.Area_Plantada_ha != null
-             ? this.escapeHTML(culture.Area_Plantada_ha) + ' ha'
-             : 'Não informada';
-
-        const areaProducao =
-            culture.Area_Producao_ha !== '' &&
-            culture.Area_Producao_ha != null
-             ? this.escapeHTML(culture.Area_Producao_ha) + ' ha'
-             : 'Não informada';
-
-        const cultivar =
-          culture.Cultivar_Variedade ||
-          'Não informada';
-
-        const idade =
-          culture.Idade_Plantio ||
-          'Não informada';
-
-        const plantas =
-          culture.Quantidade_Plantas ||
-          'Não informada';
-
-        const producao =
-    culture.Producao_Estimada !== '' &&
-    culture.Producao_Estimada != null
-        ? (
-            this.escapeHTML(culture.Producao_Estimada) +
-            ' ' +
-            this.escapeHTML(culture.Unidade_Producao || '')
-          ).trim()
-        : 'Não informada';
-        
-        return `
-          <div
-            class="mini-card culture-card"
-            data-culture-id="${this.escapeHTML(
-              culture.id
-            )}"
-          >
-
-            <div class="culture-card-header">
-
-              <div>
-                <strong>
-                  ${this.escapeHTML(
-                    cultureName
-                  )}
-                </strong>
-
-                <span class="culture-status">
-                  ${
-                    isActive
-                      ? '● Ativa'
-                      : '○ Inativa'
-                  }
-                </span>
-              </div>
-
-            </div>
-
-
-            <div class="culture-info-grid">
-
-              <div>
-                <small>Cultivar/variedade</small>
-                <strong>
-                  ${this.escapeHTML(cultivar)}
-                </strong>
-              </div>
-
-              <div>
-                <small>Área plantada</small>
-                <strong>${areaPlantada}</strong>
-              </div>
-
-              <div>
-                <small>Área em produção</small>
-                <strong>${areaProducao}</strong>
-              </div>
-
-              <div>
-                <small>Idade do plantio</small>
-                <strong>
-                  ${this.escapeHTML(idade)}
-                </strong>
-              </div>
-
-              <div>
-                <small>Quantidade de plantas</small>
-                <strong>
-                  ${this.escapeHTML(plantas)}
-                </strong>
-              </div>
-
-              <div>
-                <small>Produção estimada</small>
-                <strong>${producao}</strong>
-              </div>
-
-            </div>
-
-
-            <div class="culture-card-actions">
-
-              <button
-                type="button"
-                class="btn btn-secondary culture-details-btn"
-                data-culture-id="${this.escapeHTML(
-                  culture.id
-                )}"
-              >
-                Ver detalhes
-              </button>
-
-              <button
-                type="button"
-                class="btn btn-secondary culture-edit-btn"
-                data-culture-id="${this.escapeHTML(
-                  culture.id
-                )}"
-              >
-                Editar
-              </button>
-
-              <button
-                type="button"
-                class="btn btn-secondary culture-status-btn"
-                data-culture-id="${this.escapeHTML(
-                  culture.id
-                )}"
-              >
-                ${
-                  isActive
-                    ? 'Cancelar cultura'
-                    : 'Reativar'
-                }
-              </button>
-
-            </div>
-
-          </div>
-        `;
-      })
-      .join('')
-
-  : `
-      <div class="empty-state">
-        Nenhuma cultura cadastrada
-        nesta propriedade.
-      </div>
-    `
       </div>
     `;
 
