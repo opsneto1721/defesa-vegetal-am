@@ -224,7 +224,46 @@ console.log(
       });
   },
 
-   
+     bindMenuCards() {
+
+    // código que já colocamos...
+
+  },
+
+
+  async showHome() {
+
+    const main =
+      document.querySelector('main');
+
+    if (!main || !this.homeContent) {
+      return;
+    }
+
+    main.innerHTML =
+      this.homeContent;
+
+    this.bindMenuCards();
+
+    const syncButton =
+      document.getElementById(
+        'syncButton'
+      );
+
+    if (syncButton) {
+      syncButton.onclick =
+        () => this.handleManualSync();
+    }
+
+    this.updateConnectionStatus();
+
+    await this.updateSyncStatus();
+  },
+
+
+  /* =======================================================
+     ONLINE / OFFLINE
+  ======================================================= */
   /* =======================================================
      ONLINE / OFFLINE
   ======================================================= */
