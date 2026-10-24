@@ -174,30 +174,49 @@ console.log(
 
 
     this.bindMenuCards();
+      },
 
-  },
+     bindMenuCards() {
 
-        card.addEventListener(
-          'keydown',
-          event => {
+    document
+      .querySelectorAll('.menu-card')
+      .forEach(card => {
 
-            if (
-              event.key === 'Enter' ||
-              event.key === ' '
-            ) {
-
-              event.preventDefault();
-
-              this.openModule(
-                card.dataset.module
-              );
-            }
-          }
+        card.setAttribute(
+          'role',
+          'button'
         );
+
+        card.setAttribute(
+          'tabindex',
+          '0'
+        );
+
+        card.onclick = () => {
+
+          this.openModule(
+            card.dataset.module
+          );
+        };
+
+        card.onkeydown = event => {
+
+          if (
+            event.key === 'Enter' ||
+            event.key === ' '
+          ) {
+
+            event.preventDefault();
+
+            this.openModule(
+              card.dataset.module
+            );
+          }
+        };
       });
   },
 
-
+   
   /* =======================================================
      ONLINE / OFFLINE
   ======================================================= */
