@@ -4,7 +4,7 @@
 ========================================================= */
 
 const CACHE_NAME =
-  'defesa-vegetal-am-v2-alpha-7';
+  'defesa-vegetal-am-v2-alpha-8';
 
 const APP_SHELL = [
   './',
@@ -18,160 +18,197 @@ const APP_SHELL = [
   './manifest.json'
 ];
 
+
 /* =========================================================
    INSTALAÇÃO
 ========================================================= */
 
-self.addEventListener(
-  'install',
-  event => {
+self.addEventListener('install', event => {
 
-    event.waitUntil(
-      caches
-        .open(CACHE_NAME)
-        .then(cache => {
-          return cache.addAll(
-            APP_SHELL
-          );
-        })
-    );
+  event.waitUntil(
+    caches
+      .open(CACHE_NAME)
+      .then(cache =>
+        cache.addAll(APP_SHELL)
+      )
+  );
 
-    self.skipWaiting();
-  }
-);
+  self.skipWaiting();
+});
+
 
 /* =========================================================
    ATIVAÇÃO
 ========================================================= */
 
-self.addEventListener(
-  'activate',
-  event => {
+self.addEventListener('activate', event => {
 
-    event.waitUntil(
-      caches
-        .keys()
-        .then(keys => {
-          return Promise.all(
-            keys
-              .filter(key => {
-                return (
-                  key !== CACHE_NAME &&
-                  key.startsWith(
-                    'defesa-vegetal-am-v2-'
-                  )
-                );
-              })
-              .map(key =>
-                caches.delete(key)
-              )
-          );
-        })
-    );
+  event.waitUntil(
+    caches
+      .keys()
+      .then(keys =>
+        Promise.all(
+          keys
+            .filter(key =>
+              key.startsWith(
+                'defesa-vegetal-am-v2-'
+              ) &&
+              key !== CACHE_NAME
+            )
+            .map(key =>
+              caches.delete(key)
+            )
+        )
+      )
+      .then(() =>
+        self.clients.claim()
+      )
+  );
+});
 
-    self.clients.claim();
-  }
-);
 
 /* =========================================================
    REQUISIÇÕES
 ========================================================= */
 
-self.addEventListener(
-  'fetch',
-  event => {
+self.addEventListener('fetch', event => {
 
-    const request =
-      event.request;
+  const request = event.request;
 
-    /*
-      POST e demais métodos não entram
-      no cache do Service Worker.
-    */
-    if (request.method !== 'GET') {
-      return;
-    }
+  if (request.method !== 'GET') {
+    return;
+  }
 
-    const url =
-      new URL(request.url);
+  const url = new URL(request.url);
 
-    /*
-      Não interferimos em recursos
-      de outros domínios.
-    */
-    if (
-      url.origin !==
-      self.location.origin
-    ) {
-      return;
-    }
+  /*
+    Não interfere nas requisições
+    para Google Apps Script ou
+    outros domínios.
+  */
+  if (url.origin !== self.location.origin) {
+    return;
+  }
 
-    /*
-      NAVEGAÇÃO
 
-      Online:
-      tenta carregar a versão atual.
+  /* =======================================================
+     NAVEGAÇÃO
+     Rede primeiro / cache como fallback
+  ======================================================= */
 
-      Offline:
-      abre o index.html armazenado.
-    */
-    if (
-      request.mode === 'navigate'
-    ) {
+  if (request.mode === 'navigate') {
 
-      event.respondWith(
-        fetch(request)
-          .catch(() => {
-            return caches.match(
-              './index.html'
-            );
-          })
-      );
-
-      return;
-    }
-
-    /*
-      ARQUIVOS ESTÁTICOS
-
-      Primeiro procura no cache.
-      Se não encontrar, busca na rede
-      e guarda uma cópia.
-    */
     event.respondWith(
-      caches
-        .match(request)
-        .then(cached => {
+      fetch(request)
+        .then(response => {
 
-          if (cached) {
-            return cached;
+          const copy = response.clone();
+
+          caches
+            .open(CACHE_NAME)
+            .then(cache =>
+              cache.put(
+                './index.html',
+                copy
+              )
+            );
+
+          return response;
+        })
+        .catch(() =>
+          caches.match('./index.html')
+        )
+    );
+
+    return;
+  }
+
+
+  /* =======================================================
+     JS E CONFIGURAÇÃO
+     Rede primeiro.
+
+     Evita executar versões antigas
+     de app.js, api.js, db.js,
+     config.js e módulos.
+  ======================================================= */
+
+  const isDynamicCode =
+    url.pathname.endsWith('.js');
+
+  if (isDynamicCode) {
+
+    event.respondWith(
+      fetch(request)
+        .then(response => {
+
+          if (
+            response &&
+            response.status === 200
+          ) {
+
+            const copy =
+              response.clone();
+
+            caches
+              .open(CACHE_NAME)
+              .then(cache =>
+                cache.put(
+                  request,
+                  copy
+                )
+              );
           }
 
-          return fetch(request)
-            .then(response => {
-
-              if (
-                !response ||
-                response.status !== 200
-              ) {
-                return response;
-              }
-
-              const responseCopy =
-                response.clone();
-
-              caches
-                .open(CACHE_NAME)
-                .then(cache => {
-                  cache.put(
-                    request,
-                    responseCopy
-                  );
-                });
-
-              return response;
-            });
+          return response;
         })
+        .catch(() =>
+          caches.match(request)
+        )
     );
+
+    return;
   }
-);
+
+
+  /* =======================================================
+     DEMAIS ARQUIVOS
+     Cache primeiro
+  ======================================================= */
+
+  event.respondWith(
+    caches
+      .match(request)
+      .then(cached => {
+
+        if (cached) {
+          return cached;
+        }
+
+        return fetch(request)
+          .then(response => {
+
+            if (
+              !response ||
+              response.status !== 200
+            ) {
+              return response;
+            }
+
+            const copy =
+              response.clone();
+
+            caches
+              .open(CACHE_NAME)
+              .then(cache =>
+                cache.put(
+                  request,
+                  copy
+                )
+              );
+
+            return response;
+          });
+      })
+  );
+});
