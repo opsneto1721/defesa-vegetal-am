@@ -31,11 +31,17 @@ const App = {
 
       await this.updateSyncStatus();
 
-      await this.registerServiceWorker();
+await this.registerServiceWorker();
 
-      console.log(
-        'Defesa Vegetal AM V2 inicializada.'
-      );
+/*
+  Tenta sincronizar automaticamente
+  os registros pendentes ao iniciar.
+*/
+await this.autoSync();
+
+console.log(
+  'Defesa Vegetal AM V2 inicializada.'
+);
 
     } catch (error) {
 
@@ -79,20 +85,21 @@ const App = {
   bindEvents() {
 
     window.addEventListener(
-      'online',
-      async () => {
+  'online',
+  async () => {
 
-        this.updateConnectionStatus();
+    this.updateConnectionStatus();
 
-        await this.updateSyncStatus();
+    await this.updateSyncStatus();
 
-        this.showMessage(
-          'Conexão restabelecida.',
-          'success'
-        );
-      }
+    await this.autoSync();
+
+    this.showMessage(
+      'Conexão restabelecida.',
+      'success'
     );
-
+  }
+);
 
     window.addEventListener(
       'offline',
