@@ -318,7 +318,62 @@ const App = {
     }
   },
 
+  /* =======================================================
+     SINCRONIZAÇÃO AUTOMÁTICA
+  ======================================================= */
 
+  async autoSync() {
+
+    if (!navigator.onLine) {
+      return;
+    }
+
+    if (!apiIsConfigured()) {
+      return;
+    }
+
+    try {
+
+      const pending =
+        await countPendingSyncItems();
+
+      if (pending === 0) {
+        await this.updateSyncStatus();
+        return;
+      }
+
+      console.log(
+        `Sincronização automática: ${pending} registro(s) pendente(s).`
+      );
+
+      const result =
+        await syncAll();
+
+      if (result?.ok) {
+
+        console.log(
+          `Sincronização automática concluída: ${result.success} registro(s).`
+        );
+
+      } else {
+
+        console.warn(
+          'Sincronização automática concluída com pendências.',
+          result
+        );
+      }
+
+      await this.updateSyncStatus();
+
+    } catch (error) {
+
+      console.error(
+        'Falha na sincronização automática:',
+        error
+      );
+    }
+  },
+   
   /* =======================================================
      SINCRONIZAÇÃO MANUAL
   ======================================================= */
