@@ -2741,19 +2741,15 @@ cultures.length
           'Não informada';
 
         const producao =
-          culture.Producao_Estimada !== '' &&
-          culture.Producao_Estimada != null
-            ? `${
-                this.escapeHTML(
-                  culture.Producao_Estimada
-                )
-              } ${
-                this.escapeHTML(
-                  culture.Unidade_Producao || ''
-                )
-              }`.trim()
-            : 'Não informada';
-
+    culture.Producao_Estimada !== '' &&
+    culture.Producao_Estimada != null
+        ? (
+            this.escapeHTML(culture.Producao_Estimada) +
+            ' ' +
+            this.escapeHTML(culture.Unidade_Producao || '')
+          ).trim()
+        : 'Não informada';
+        
         return `
           <div
             class="mini-card culture-card"
