@@ -14,12 +14,19 @@ const App = {
       return;
     }
 
-    this.initialized = true;
+        this.initialized = true;
+
+    const main =
+      document.querySelector('main');
+
+    if (main) {
+      this.homeContent =
+        main.innerHTML;
+    }
 
     console.log(
       `Iniciando ${APP_CONFIG.APP_NAME} ${APP_CONFIG.APP_VERSION}`
     );
-
     try {
 
       await initLocalDatabase();
