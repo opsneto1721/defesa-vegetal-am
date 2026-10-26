@@ -94,6 +94,32 @@ const DashboardModule = {
     },
     0
   );
+       const propriedadesPorMunicipio = {};
+
+propriedades.forEach(
+  propriedade => {
+
+    const municipio =
+      propriedade.Municipio ||
+      propriedade.municipio ||
+      'Não informado';
+
+    propriedadesPorMunicipio[municipio] =
+      (propriedadesPorMunicipio[municipio] || 0) + 1;
+  }
+);
+
+const municipiosOrdenados =
+  Object.entries(propriedadesPorMunicipio)
+    .sort((a, b) => b[1] - a[1]);
+
+const maiorQuantidadeMunicipio =
+  Math.max(
+    ...municipiosOrdenados.map(
+      item => item[1]
+    ),
+    1
+  );
 
       console.log(
         'Dashboard:',
