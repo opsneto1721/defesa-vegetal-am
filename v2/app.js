@@ -46,7 +46,12 @@ await this.registerServiceWorker();
   os registros pendentes ao iniciar.
 */
 await this.autoSync();
-
+if (
+  navigator.onLine &&
+  apiIsConfigured()
+) {
+  await downloadServerRecords();
+}
 console.log(
   'Defesa Vegetal AM V2 inicializada.'
 );
