@@ -494,9 +494,14 @@ console.log(
   ======================================================= */
     openModule(moduleName) {
      if (moduleName === 'cadastros') {
-         CadastrosModule.open();
-          return;
-      }
+  CadastrosModule.open();
+  return;
+}
+
+if (moduleName === 'dashboard') {
+  DashboardModule.open();
+  return;
+}
 
     /*
       Nesta primeira etapa, os cartões já são
