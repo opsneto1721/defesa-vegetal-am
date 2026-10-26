@@ -75,7 +75,7 @@ const DashboardModule = {
 
 
   /* =======================================================
-     CARREGAR DASHBOARD
+     CARREGAR DADOS
   ======================================================= */
 
   async load() {
@@ -90,10 +90,6 @@ const DashboardModule = {
     }
 
     try {
-
-      /* =====================================================
-         CARREGAR DADOS DO INDEXEDDB
-      ===================================================== */
 
       this.produtores =
         await dbGetAll('produtores');
@@ -116,7 +112,7 @@ const DashboardModule = {
 
 
       /* =====================================================
-         CALCULAR ÁREA TOTAL
+         ÁREA TOTAL DE PRODUÇÃO
       ===================================================== */
 
       const areaTotal =
@@ -148,7 +144,6 @@ const DashboardModule = {
 
           const municipio =
             propriedade.Municipio ||
-            propriedade.municipio ||
             'Não informado';
 
           propriedadesPorMunicipio[municipio] =
@@ -265,7 +260,7 @@ const DashboardModule = {
 
 
         <!-- ===============================================
-             CONSULTA DE CADASTROS
+             CONSULTAR CADASTROS
         ================================================ -->
 
         <section class="dashboard-section">
@@ -416,8 +411,7 @@ const DashboardModule = {
                 : `
 
                   <p class="dashboard-empty">
-                    Nenhuma propriedade
-                    cadastrada.
+                    Nenhuma propriedade cadastrada.
                   </p>
 
                 `
@@ -428,7 +422,6 @@ const DashboardModule = {
         </section>
 
       `;
-
 
     } catch (error) {
 
@@ -490,8 +483,12 @@ const DashboardModule = {
         <input
           type="search"
           id="dashboardSearchProdutor"
-          placeholder="Pesquisar por nome, CPF/CNPJ ou município..."
-          oninput="DashboardModule.filterProdutores(this.value)"
+          placeholder="Pesquisar por nome, CPF/CNPJ, telefone ou e-mail..."
+          oninput="
+            DashboardModule.filterProdutores(
+              this.value
+            )
+          "
         >
 
       </div>
@@ -539,16 +536,12 @@ const DashboardModule = {
 
           const texto =
             [
-              produtor.Nome,
-              produtor.nome,
-              produtor.Nome_Produtor,
-              produtor.nomeProdutor,
+              produtor.Nome_Razao_Social,
               produtor.CPF_CNPJ,
-              produtor.cpfCnpj,
-              produtor.CPF,
-              produtor.CNPJ,
-              produtor.Municipio,
-              produtor.municipio
+              produtor.Telefone,
+              produtor.Email,
+              produtor.Tipo_Pessoa,
+              produtor.Status
             ]
               .filter(Boolean)
               .join(' ')
@@ -589,9 +582,7 @@ const DashboardModule = {
       container.innerHTML = `
 
         <div class="empty-state">
-
           Nenhum produtor encontrado.
-
         </div>
 
       `;
@@ -606,24 +597,27 @@ const DashboardModule = {
           produtor => {
 
             const nome =
-              produtor.Nome ||
-              produtor.nome ||
-              produtor.Nome_Produtor ||
-              produtor.nomeProdutor ||
+              produtor.Nome_Razao_Social ||
               'Produtor sem nome';
 
 
             const cpfCnpj =
               produtor.CPF_CNPJ ||
-              produtor.cpfCnpj ||
-              produtor.CPF ||
-              produtor.CNPJ ||
               'Não informado';
 
 
-            const municipio =
-              produtor.Municipio ||
-              produtor.municipio ||
+            const telefone =
+              produtor.Telefone ||
+              'Não informado';
+
+
+            const email =
+              produtor.Email ||
+              'Não informado';
+
+
+            const tipoPessoa =
+              produtor.Tipo_Pessoa ||
               'Não informado';
 
 
@@ -656,8 +650,20 @@ const DashboardModule = {
 
 
                   <span>
-                    Município:
-                    ${this.escapeHtml(municipio)}
+                    Telefone:
+                    ${this.escapeHtml(telefone)}
+                  </span>
+
+
+                  <span>
+                    E-mail:
+                    ${this.escapeHtml(email)}
+                  </span>
+
+
+                  <span>
+                    Tipo:
+                    ${this.escapeHtml(tipoPessoa)}
                   </span>
 
                 </div>
@@ -713,7 +719,11 @@ const DashboardModule = {
           type="search"
           id="dashboardSearchPropriedade"
           placeholder="Pesquisar por propriedade, município ou produtor..."
-          oninput="DashboardModule.filterPropriedades(this.value)"
+          oninput="
+            DashboardModule.filterPropriedades(
+              this.value
+            )
+          "
         >
 
       </div>
@@ -765,23 +775,21 @@ const DashboardModule = {
             );
 
 
+          const nomeProdutor =
+            produtor
+              ? produtor.Nome_Razao_Social
+              : '';
+
+
           const texto =
             [
               propriedade.Nome_Propriedade,
-              propriedade.nomePropriedade,
-              propriedade.Nome,
-              propriedade.nome,
+              propriedade.Codigo_Propriedade_Oficial,
+              propriedade.Propriedade_Comercial,
+              propriedade.Comunidade_Localidade,
               propriedade.Municipio,
-              propriedade.municipio,
-
-              produtor
-                ? (
-                    produtor.Nome ||
-                    produtor.nome ||
-                    produtor.Nome_Produtor ||
-                    produtor.nomeProdutor
-                  )
-                : ''
+              propriedade.UF,
+              nomeProdutor
             ]
               .filter(Boolean)
               .join(' ')
@@ -822,9 +830,7 @@ const DashboardModule = {
       container.innerHTML = `
 
         <div class="empty-state">
-
           Nenhuma propriedade encontrada.
-
         </div>
 
       `;
@@ -840,24 +846,25 @@ const DashboardModule = {
 
             const nome =
               propriedade.Nome_Propriedade ||
-              propriedade.nomePropriedade ||
-              propriedade.Nome ||
-              propriedade.nome ||
               'Propriedade sem nome';
 
 
             const municipio =
               propriedade.Municipio ||
-              propriedade.municipio ||
               'Não informado';
 
 
             const comunidade =
-              propriedade.Comunidade ||
-              propriedade.comunidade ||
-              propriedade.Localidade ||
-              propriedade.localidade ||
+              propriedade.Comunidade_Localidade ||
               'Não informado';
+
+
+            const areaTotal =
+              propriedade.Area_Total_ha;
+
+
+            const areaAgricola =
+              propriedade.Area_Agricola_ha;
 
 
             const produtor =
@@ -869,17 +876,10 @@ const DashboardModule = {
             const nomeProdutor =
               produtor
                 ? (
-                    produtor.Nome ||
-                    produtor.nome ||
-                    produtor.Nome_Produtor ||
-                    produtor.nomeProdutor ||
+                    produtor.Nome_Razao_Social ||
                     'Não informado'
                   )
-                : (
-                    propriedade.Nome_Produtor ||
-                    propriedade.nomeProdutor ||
-                    'Não informado'
-                  );
+                : 'Não informado';
 
 
             return `
@@ -906,20 +906,66 @@ const DashboardModule = {
 
                   <span>
                     Produtor:
-                    ${this.escapeHtml(nomeProdutor)}
+                    ${this.escapeHtml(
+                      nomeProdutor
+                    )}
                   </span>
 
 
                   <span>
                     Município:
-                    ${this.escapeHtml(municipio)}
+                    ${this.escapeHtml(
+                      municipio
+                    )}
                   </span>
 
 
                   <span>
                     Comunidade/Localidade:
-                    ${this.escapeHtml(comunidade)}
+                    ${this.escapeHtml(
+                      comunidade
+                    )}
                   </span>
+
+
+                  ${
+                    areaTotal !== undefined &&
+                    areaTotal !== null &&
+                    areaTotal !== ''
+
+                      ? `
+
+                        <span>
+                          Área total:
+                          ${this.escapeHtml(
+                            areaTotal
+                          )} ha
+                        </span>
+
+                      `
+
+                      : ''
+                  }
+
+
+                  ${
+                    areaAgricola !== undefined &&
+                    areaAgricola !== null &&
+                    areaAgricola !== ''
+
+                      ? `
+
+                        <span>
+                          Área agrícola:
+                          ${this.escapeHtml(
+                            areaAgricola
+                          )} ha
+                        </span>
+
+                      `
+
+                      : ''
+                  }
 
                 </div>
 
@@ -933,53 +979,92 @@ const DashboardModule = {
 
 
   /* =======================================================
-     LOCALIZAR PRODUTOR DA PROPRIEDADE
+     ENCONTRAR PRODUTOR VINCULADO À PROPRIEDADE
   ======================================================= */
 
   getProdutorDaPropriedade(
     propriedade
   ) {
 
-    const produtorId =
-      propriedade.ID_Produtor ||
-      propriedade.idProdutor ||
-      propriedade.ID_Produtor_Local ||
-      propriedade.idProdutorLocal;
+    /*
+       O sistema possui registros locais e registros
+       sincronizados com o servidor.
+
+       Por isso aceitamos diferentes identificadores.
+    */
+
+    const idsPropriedade = [
+
+      propriedade.ID_Produtor,
+
+      propriedade.ID_Produtor_Local,
+
+      propriedade.ID_Proprietario,
+
+      propriedade.idProdutor,
+
+      propriedade.idProdutorLocal
+
+    ]
+      .filter(
+        valor =>
+          valor !== undefined &&
+          valor !== null &&
+          String(valor).trim() !== ''
+      )
+      .map(
+        valor =>
+          String(valor).trim()
+      );
 
 
-    if (!produtorId) {
+    if (!idsPropriedade.length) {
       return null;
     }
 
 
-    return (
+    const produtorEncontrado =
       this.produtores.find(
         produtor => {
 
-          const ids = [
-            produtor.id,
-            produtor.ID,
+          const idsProdutor = [
+
             produtor.ID_Produtor,
-            produtor.idProdutor,
-            produtor.ID_Produtor_Local,
-            produtor.idProdutorLocal
+
+            produtor.id,
+
+            produtor.ID_Servidor_Cadastro
+
           ]
-            .filter(Boolean)
-            .map(String);
+            .filter(
+              valor =>
+                valor !== undefined &&
+                valor !== null &&
+                String(valor).trim() !== ''
+            )
+            .map(
+              valor =>
+                String(valor).trim()
+            );
 
 
-          return ids.includes(
-            String(produtorId)
+          return idsPropriedade.some(
+            id =>
+              idsProdutor.includes(id)
           );
         }
-      ) ||
+      );
+
+
+    return (
+      produtorEncontrado ||
       null
     );
   },
 
 
   /* =======================================================
-     PROTEÇÃO DE TEXTO PARA HTML
+     PROTEÇÃO DE TEXTO
   ======================================================= */
 
   escapeHtml(value) {
