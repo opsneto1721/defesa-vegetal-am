@@ -78,6 +78,22 @@ const DashboardModule = {
 
       const culturas =
         await dbGetAll('culturas');
+       const areaTotal =
+  culturas.reduce(
+    (total, cultura) => {
+
+      const area =
+        Number(
+          cultura.Area_Producao_ha ||
+          cultura.areaProducao ||
+          cultura.area ||
+          0
+        );
+
+      return total + area;
+    },
+    0
+  );
 
       console.log(
         'Dashboard:',
@@ -111,6 +127,19 @@ const DashboardModule = {
               ${culturas.length}
             </strong>
           </article>
+
+          <article class="dashboard-card">
+  <span>Área total de produção</span>
+  <strong>
+    ${areaTotal.toLocaleString(
+      'pt-BR',
+      {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }
+    )} ha
+  </strong>
+</article>
 
         </div>
       `;
