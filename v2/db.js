@@ -345,7 +345,88 @@ async function getMeta(key) {
   const item = await dbGet('meta', key);
   return item ? item.value : null;
 }
+/* =========================================================
+   IMPORTAÇÃO DE REGISTROS DO SERVIDOR
+========================================================= */
 
+async function importServerRecords(records = {}) {
+
+  const entityMap = {
+    Produtores: 'produtores',
+    Propriedades: 'propriedades',
+    Culturas: 'culturas'
+  };
+
+  let imported = 0;
+
+  for (const [serverEntity, storeName] of Object.entries(entityMap)) {
+
+    const items =
+      Array.isArray(records[serverEntity])
+        ? records[serverEntity]
+        : [];
+
+    for (const item of items) {
+
+      const id =
+        item.id ||
+        item.ID ||
+        item.ID_Produtor ||
+        item.ID_Propriedade ||
+        item.ID_Cultura;
+
+      if (!id) {
+        console.warn(
+          `Registro de ${serverEntity} sem ID. Ignorado.`,
+          item
+        );
+
+        continue;
+      }
+
+      const localRecord =
+        await dbGet(
+          storeName,
+          String(id)
+        );
+
+      /*
+        Se houver uma alteração local ainda não
+        sincronizada, ela não será sobrescrita
+        pelo servidor.
+      */
+      if (
+        localRecord &&
+        localRecord.syncStatus === 'PENDENTE'
+      ) {
+        continue;
+      }
+
+      await dbPut(
+        storeName,
+        {
+          ...item,
+
+          id: String(id),
+
+          syncStatus: 'SINCRONIZADO',
+
+          syncedAt:
+            new Date().toISOString()
+        }
+      );
+
+      imported++;
+    }
+  }
+
+  await setMeta(
+    'lastServerDownload',
+    new Date().toISOString()
+  );
+
+  return imported;
+}
 /* =========================================================
    SUBSTITUIÇÃO DE CATÁLOGOS
 ========================================================= */
