@@ -132,7 +132,71 @@ const maiorQuantidadeMunicipio =
 
       container.innerHTML = `
         <div class="dashboard-summary">
+<section class="dashboard-section">
 
+  <div class="dashboard-section-header">
+    <div>
+      <h3>Propriedades por município</h3>
+      <p>
+        Distribuição das propriedades
+        cadastradas no sistema.
+      </p>
+    </div>
+  </div>
+
+  <div class="dashboard-chart">
+
+    ${
+      municipiosOrdenados.length
+        ? municipiosOrdenados
+            .map(
+              ([municipio, quantidade]) => {
+
+                const percentual =
+                  (quantidade /
+                    maiorQuantidadeMunicipio) *
+                  100;
+
+                return `
+                  <div class="dashboard-bar-row">
+
+                    <div class="dashboard-bar-info">
+                      <span>
+                        ${municipio}
+                      </span>
+
+                      <strong>
+                        ${quantidade}
+                      </strong>
+                    </div>
+
+                    <div class="dashboard-bar-track">
+
+                      <div
+                        class="dashboard-bar-fill"
+                        style="
+                          width:
+                          ${percentual}%;
+                        "
+                      ></div>
+
+                    </div>
+
+                  </div>
+                `;
+              }
+            )
+            .join('')
+        : `
+          <p class="dashboard-empty">
+            Nenhuma propriedade cadastrada.
+          </p>
+        `
+    }
+
+  </div>
+
+</section>
           <article class="dashboard-card">
             <span>Produtores</span>
             <strong>
