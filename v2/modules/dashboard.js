@@ -25,6 +25,7 @@ const DashboardModule = {
       <section class="module-page">
 
         <div class="module-header">
+
           <button
             type="button"
             class="btn btn-secondary"
@@ -35,12 +36,15 @@ const DashboardModule = {
 
           <div>
             <h2>Dashboard de Cadastros</h2>
+
             <p>
               Visão geral dos produtores,
               propriedades e culturas cadastradas.
             </p>
           </div>
+
         </div>
+
 
         <section id="dashboardContent">
 
@@ -70,6 +74,10 @@ const DashboardModule = {
 
     try {
 
+      /* =====================================================
+         CARREGAR DADOS
+      ===================================================== */
+
       const produtores =
         await dbGetAll('produtores');
 
@@ -78,161 +86,265 @@ const DashboardModule = {
 
       const culturas =
         await dbGetAll('culturas');
-       const areaTotal =
-  culturas.reduce(
-    (total, cultura) => {
 
-      const area =
-        Number(
-          cultura.Area_Producao_ha ||
-          cultura.areaProducao ||
-          cultura.area ||
+
+      /* =====================================================
+         CALCULAR ÁREA TOTAL DE PRODUÇÃO
+      ===================================================== */
+
+      const areaTotal =
+        culturas.reduce(
+          (total, cultura) => {
+
+            const area =
+              Number(
+                cultura.Area_Producao_ha ||
+                cultura.areaProducao ||
+                cultura.area ||
+                0
+              );
+
+            return total + area;
+          },
           0
         );
 
-      return total + area;
-    },
-    0
-  );
-       const propriedadesPorMunicipio = {};
 
-propriedades.forEach(
-  propriedade => {
+      /* =====================================================
+         PROPRIEDADES POR MUNICÍPIO
+      ===================================================== */
 
-    const municipio =
-      propriedade.Municipio ||
-      propriedade.municipio ||
-      'Não informado';
+      const propriedadesPorMunicipio = {};
 
-    propriedadesPorMunicipio[municipio] =
-      (propriedadesPorMunicipio[municipio] || 0) + 1;
-  }
-);
+      propriedades.forEach(
+        propriedade => {
 
-const municipiosOrdenados =
-  Object.entries(propriedadesPorMunicipio)
-    .sort((a, b) => b[1] - a[1]);
+          const municipio =
+            propriedade.Municipio ||
+            propriedade.municipio ||
+            'Não informado';
 
-const maiorQuantidadeMunicipio =
-  Math.max(
-    ...municipiosOrdenados.map(
-      item => item[1]
-    ),
-    1
-  );
+          propriedadesPorMunicipio[municipio] =
+            (
+              propriedadesPorMunicipio[municipio] ||
+              0
+            ) + 1;
+        }
+      );
+
+
+      const municipiosOrdenados =
+        Object.entries(
+          propriedadesPorMunicipio
+        )
+          .sort(
+            (a, b) => b[1] - a[1]
+          );
+
+
+      const maiorQuantidadeMunicipio =
+        Math.max(
+          ...municipiosOrdenados.map(
+            item => item[1]
+          ),
+          1
+        );
+
+
+      /* =====================================================
+         LOG PARA TESTES
+      ===================================================== */
 
       console.log(
         'Dashboard:',
         {
           produtores,
           propriedades,
-          culturas
+          culturas,
+          areaTotal,
+          propriedadesPorMunicipio
         }
       );
 
+
+      /* =====================================================
+         MONTAR DASHBOARD
+      ===================================================== */
+
       container.innerHTML = `
+
+        <!-- ===============================================
+             INDICADORES PRINCIPAIS
+        ================================================ -->
+
         <div class="dashboard-summary">
-<section class="dashboard-section">
 
-  <div class="dashboard-section-header">
-    <div>
-      <h3>Propriedades por município</h3>
-      <p>
-        Distribuição das propriedades
-        cadastradas no sistema.
-      </p>
-    </div>
-  </div>
-
-  <div class="dashboard-chart">
-
-    ${
-      municipiosOrdenados.length
-        ? municipiosOrdenados
-            .map(
-              ([municipio, quantidade]) => {
-
-                const percentual =
-                  (quantidade /
-                    maiorQuantidadeMunicipio) *
-                  100;
-
-                return `
-                  <div class="dashboard-bar-row">
-
-                    <div class="dashboard-bar-info">
-                      <span>
-                        ${municipio}
-                      </span>
-
-                      <strong>
-                        ${quantidade}
-                      </strong>
-                    </div>
-
-                    <div class="dashboard-bar-track">
-
-                      <div
-                        class="dashboard-bar-fill"
-                        style="
-                          width:
-                          ${percentual}%;
-                        "
-                      ></div>
-
-                    </div>
-
-                  </div>
-                `;
-              }
-            )
-            .join('')
-        : `
-          <p class="dashboard-empty">
-            Nenhuma propriedade cadastrada.
-          </p>
-        `
-    }
-
-  </div>
-
-</section>
           <article class="dashboard-card">
-            <span>Produtores</span>
+
+            <span>
+              Produtores
+            </span>
+
             <strong>
               ${produtores.length}
             </strong>
+
           </article>
 
+
           <article class="dashboard-card">
-            <span>Propriedades</span>
+
+            <span>
+              Propriedades
+            </span>
+
             <strong>
               ${propriedades.length}
             </strong>
+
           </article>
 
+
           <article class="dashboard-card">
-            <span>Culturas</span>
+
+            <span>
+              Culturas
+            </span>
+
             <strong>
               ${culturas.length}
             </strong>
+
           </article>
 
+
           <article class="dashboard-card">
-  <span>Área total de produção</span>
-  <strong>
-    ${areaTotal.toLocaleString(
-      'pt-BR',
-      {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      }
-    )} ha
-  </strong>
-</article>
+
+            <span>
+              Área total de produção
+            </span>
+
+            <strong>
+
+              ${areaTotal.toLocaleString(
+                'pt-BR',
+                {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+                }
+              )} ha
+
+            </strong>
+
+          </article>
 
         </div>
+
+
+        <!-- ===============================================
+             PROPRIEDADES POR MUNICÍPIO
+        ================================================ -->
+
+        <section class="dashboard-section">
+
+          <div class="dashboard-section-header">
+
+            <div>
+
+              <h3>
+                Propriedades por município
+              </h3>
+
+              <p>
+                Distribuição das propriedades
+                cadastradas no sistema.
+              </p>
+
+            </div>
+
+          </div>
+
+
+          <div class="dashboard-chart">
+
+            ${
+              municipiosOrdenados.length
+
+                ? municipiosOrdenados
+                    .map(
+                      (
+                        [
+                          municipio,
+                          quantidade
+                        ]
+                      ) => {
+
+                        const percentual =
+                          (
+                            quantidade /
+                            maiorQuantidadeMunicipio
+                          ) * 100;
+
+                        return `
+
+                          <div
+                            class="dashboard-bar-row"
+                          >
+
+                            <div
+                              class="dashboard-bar-info"
+                            >
+
+                              <span>
+                                ${municipio}
+                              </span>
+
+                              <strong>
+                                ${quantidade}
+                              </strong>
+
+                            </div>
+
+
+                            <div
+                              class="dashboard-bar-track"
+                            >
+
+                              <div
+                                class="dashboard-bar-fill"
+                                style="
+                                  width:
+                                  ${percentual}%;
+                                "
+                              ></div>
+
+                            </div>
+
+                          </div>
+
+                        `;
+                      }
+                    )
+                    .join('')
+
+                : `
+
+                  <p
+                    class="dashboard-empty"
+                  >
+                    Nenhuma propriedade
+                    cadastrada.
+                  </p>
+
+                `
+            }
+
+          </div>
+
+        </section>
+
       `;
+
 
     } catch (error) {
 
@@ -242,10 +354,12 @@ const maiorQuantidadeMunicipio =
       );
 
       container.innerHTML = `
+
         <p>
           Não foi possível carregar
           os dados do Dashboard.
         </p>
+
       `;
     }
   }
