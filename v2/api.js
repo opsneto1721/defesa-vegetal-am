@@ -332,7 +332,71 @@ async function syncAll() {
     );
   }
 }
+/* =========================================================
+   DOWNLOAD DOS REGISTROS DO SERVIDOR
 
+   Baixa Produtores, Propriedades e Culturas
+   do Google Sheets para o banco local.
+========================================================= */
+
+async function downloadServerRecords() {
+
+  if (!navigator.onLine) {
+    return {
+      ok: false,
+      reason: 'OFFLINE',
+      imported: 0
+    };
+  }
+
+  if (!apiIsConfigured()) {
+    return {
+      ok: false,
+      reason: 'API_NAO_CONFIGURADA',
+      imported: 0
+    };
+  }
+
+  try {
+
+    const result =
+      await apiRequest(
+        'getRecords'
+      );
+
+    const records =
+      result.records || {};
+
+    const imported =
+      await importServerRecords(
+        records
+      );
+
+    console.log(
+      `${imported} registro(s) recebido(s) do servidor.`
+    );
+
+    return {
+      ok: true,
+      imported
+    };
+
+  } catch (error) {
+
+    console.error(
+      'Erro ao baixar registros do servidor:',
+      error
+    );
+
+    return {
+      ok: false,
+      reason:
+        error.message ||
+        String(error),
+      imported: 0
+    };
+  }
+}
 /* =========================================================
    SINCRONIZAÇÃO DOS CATÁLOGOS
 ========================================================= */
