@@ -967,3 +967,206 @@ main {
   }
 
 }
+/* =========================================================
+   CONSULTA DE CADASTROS NO DASHBOARD
+========================================================= */
+
+.dashboard-consult-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.dashboard-consult-actions .btn {
+  min-width: 210px;
+}
+
+
+/* ÁREA ONDE A CONSULTA É EXIBIDA */
+
+.dashboard-consulta {
+  margin-top: 18px;
+}
+
+
+/* CABEÇALHO DA LISTA */
+
+.dashboard-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+
+  margin-bottom: 16px;
+}
+
+.dashboard-list-header h4 {
+  margin: 0 0 4px;
+
+  color: #173b2a;
+  font-size: 18px;
+}
+
+.dashboard-list-header span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+
+/* =========================================================
+   CAMPO DE PESQUISA
+========================================================= */
+
+.dashboard-search {
+  margin-bottom: 18px;
+}
+
+.dashboard-search input {
+  width: 100%;
+
+  padding: 13px 15px;
+
+  background: #ffffff;
+  color: var(--text);
+
+  border: 1px solid var(--border);
+  border-radius: 12px;
+
+  outline: none;
+
+  font-size: 15px;
+
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.dashboard-search input:focus {
+  border-color: var(--primary);
+
+  box-shadow:
+    0 0 0 3px var(--primary-light);
+}
+
+
+/* =========================================================
+   LISTA DE REGISTROS
+========================================================= */
+
+.dashboard-record-list {
+  display: grid;
+  gap: 12px;
+}
+
+
+/* =========================================================
+   CARTÃO DE PRODUTOR / PROPRIEDADE
+========================================================= */
+
+.dashboard-record-card {
+  display: flex;
+  align-items: flex-start;
+
+  gap: 14px;
+
+  padding: 16px;
+
+  background: #ffffff;
+
+  border: 1px solid var(--border);
+  border-radius: 14px;
+
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.dashboard-record-card:hover {
+  border-color: #b9d5c5;
+
+  box-shadow:
+    0 5px 14px rgba(0, 0, 0, 0.05);
+
+  transform: translateY(-1px);
+}
+
+
+/* ÍCONE */
+
+.dashboard-record-icon {
+  width: 44px;
+  height: 44px;
+
+  flex: 0 0 44px;
+
+  display: grid;
+  place-items: center;
+
+  background: var(--primary-light);
+
+  border-radius: 12px;
+
+  font-size: 21px;
+}
+
+
+/* INFORMAÇÕES */
+
+.dashboard-record-content {
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 5px;
+}
+
+.dashboard-record-content strong {
+  color: #173b2a;
+
+  font-size: 16px;
+
+  overflow-wrap: anywhere;
+}
+
+.dashboard-record-content span {
+  color: var(--muted);
+
+  font-size: 14px;
+  line-height: 1.4;
+
+  overflow-wrap: anywhere;
+}
+
+
+/* =========================================================
+   CELULAR
+========================================================= */
+
+@media (max-width: 600px) {
+
+  .dashboard-consult-actions {
+    flex-direction: column;
+  }
+
+  .dashboard-consult-actions .btn {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .dashboard-record-card {
+    padding: 14px;
+  }
+
+  .dashboard-record-icon {
+    width: 40px;
+    height: 40px;
+
+    flex-basis: 40px;
+
+    font-size: 19px;
+  }
+
+}
