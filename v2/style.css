@@ -534,7 +534,7 @@ main {
 .dashboard-summary {
   display: grid;
   grid-template-columns:
-    repeat(3, minmax(0, 1fr));
+    repeat(4, minmax(0, 1fr));
   gap: 20px;
   margin-top: 24px;
 }
