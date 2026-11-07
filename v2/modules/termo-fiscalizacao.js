@@ -94,10 +94,6 @@ const TermoFiscalizacao = {
       .recv { font-size: 8pt; color: #4a5866; margin: 1mm 0; }
       .via { font-size: 7.8pt; color: #1b2430; margin-top: 1.2mm; padding-top: 1mm; border-top: 1px dashed #d5dde5; }
       .team { font-size: 7.4pt; color: #4a5866; margin-top: 1mm; text-align: center; }
-      .wit-na { margin-top: 2.2mm; font-size: 8pt; color: #4a5866; padding: 1.6mm 2.5mm; }
-      .wit-box { margin-top: 2.2mm; }
-      .signs .box { min-height: 33mm; }
-      .wit-row td { vertical-align: top; }
       .na { font-size: 8pt; color: #6b7886; font-style: italic; padding: 8mm 0; text-align: center; }
 
       /* Rodapé */
@@ -229,34 +225,32 @@ const TermoFiscalizacao = {
         <table class="signs"><tr>
           <td style="width:50%">
             <div class="box">
-              <div class="box-h">Ciência do fiscalizado</div>
-              <div class="recv">Declaro ciência do inteiro teor deste Termo de Fiscalização${r.quando ? ` — ${e(r.quando)}${r.local ? ', ' + e(r.local) : ''}` : ''}.</div>
-              ${this.signature(r.assinatura, r.nome, r.qualificacao || 'Assinatura')}
-              <div class="via"><b>2ª via:</b> ${ctx.entrega ? e(ctx.entrega) : '____________________________________________'}</div>
+              <div class="box-h"><span class="n" style="display:inline-block;width:4.2mm;height:4.2mm;line-height:4.2mm;border-radius:50%;background:#12335f;color:#fff;text-align:center;font-size:7pt;margin-right:1mm">4</span>Testemunhas</div>
+              <div class="box-sub">Necessárias apenas quando o autuado se negar a assinar ou estiver ausente.</div>
+              ${ctx.testemunhasAplicaveis === false
+                ? '<div class="na">Não se aplica — o fiscalizado assinou o termo.</div>'
+                : this.witness(wits[0], 1) + this.witness(wits[1], 2)}
             </div>
           </td>
           <td class="gap"></td>
           <td style="width:50%">
             <div class="box">
+              <div class="box-h">Ciência do fiscalizado</div>
+              <div class="recv">Declaro ciência do inteiro teor deste Termo de Fiscalização${r.quando ? ` — ${e(r.quando)}${r.local ? ', ' + e(r.local) : ''}` : ''}.</div>
+              ${this.signature(r.assinatura, r.nome, r.qualificacao || 'Assinatura')}
+              <div class="via"><b>2ª via:</b> ${ctx.entrega ? e(ctx.entrega) : '____________________________________________'}</div>
+            </div>
+            <div class="box" style="margin-top:2.5mm">
               <div class="box-h">Servidor da ADAF</div>
-              <div class="recv">Fiscalização realizada por:</div>
               ${this.signature(sv.assinatura, sv.nome, [sv.cargo, sv.matricula ? 'Matrícula ' + sv.matricula : ''].filter(Boolean).join(' — ') || 'Assinatura e identificação')}
-              ${sv.equipe ? `<div class="via"><b>Equipe:</b> ${e(sv.equipe)}</div>` : ''}
+              ${sv.equipe ? `<div class="team"><b>Equipe:</b> ${e(sv.equipe)}</div>` : ''}
             </div>
           </td>
         </tr></table>
 
-        ${ctx.testemunhasAplicaveis === false
-          ? `<div class="box wit-na"><span class="box-h">4 – Testemunhas:</span> não se aplica — o fiscalizado assinou o termo.</div>`
-          : `<div class="box wit-box">
-              <div class="box-h"><span class="n" style="display:inline-block;width:4.2mm;height:4.2mm;line-height:4.2mm;border-radius:50%;background:#12335f;color:#fff;text-align:center;font-size:7pt;margin-right:1mm">4</span>Testemunhas
-                <span class="box-sub" style="text-transform:none;letter-spacing:0;font-weight:400"> — necessárias quando o autuado se negar a assinar ou estiver ausente</span></div>
-              <table class="wit-row"><tr>
-                <td style="width:50%">${this.witness(wits[0], 1)}</td>
-                <td class="gap"></td>
-                <td style="width:50%">${this.witness(wits[1], 2)}</td>
-              </tr></table>
-            </div>`}
+        <table class="vias"><tr>
+          <td><span>1ª via: Interessado</span></td><td><span>2ª via: ADAF Central</span></td><td><span>3ª via: Unidade Local</span></td>
+        </tr></table>
 
         <table class="foot"><tr>
           <td style="width:62%">
