@@ -33,6 +33,10 @@ const App = {
 
       this.setVersion();
 
+      Auth.renderBadge();
+      await this.loadCultureCatalogCache();
+      window.addEventListener('catalogs-updated', () => this.loadCultureCatalogCache());
+
       this.bindEvents();
 
       this.updateConnectionStatus();
@@ -505,6 +509,23 @@ console.log(
     }
   },
 
+  /*
+    Mantém em memória o catálogo de culturas da planilha
+    (Cadastro_Culturas) para o formulário de cultura,
+    que precisa dele de forma síncrona.
+  */
+  async loadCultureCatalogCache() {
+    try {
+      const list = await dbGetAll('cadastroCulturas');
+      window.DV_CULTURE_CATALOG = list
+        .filter(c => c.ID_Tipo_Cultura && String(c.Ativo || 'SIM').toUpperCase() !== 'NAO')
+        .map(c => ({ id: String(c.ID_Tipo_Cultura), nome: String(c.Nome_Cultura || c.ID_Tipo_Cultura) }))
+        .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+    } catch (error) {
+      console.warn('Catálogo de culturas indisponível:', error);
+    }
+  },
+
 
   /* =======================================================
      MÓDULOS
@@ -649,7 +670,8 @@ if (moduleName === 'fiscalizacoes') {
           '0 8px 24px rgba(0,0,0,.18)',
         fontSize: '14px',
         lineHeight: '1.4',
-        pointerEvents: 'auto'
+        // Avisos não bloqueiam toques na tela
+        pointerEvents: 'none'
       }
     );
 

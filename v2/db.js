@@ -392,7 +392,10 @@ async function importServerRecords(records = {}) {
     ocorrenciasPragas: 'ocorrenciasPragas',
     amostras: 'amostras',
     providencias: 'providencias',
-    evidencias: 'evidencias'
+    evidencias: 'evidencias',
+    dadosFiscalizacao: 'dadosFiscalizacao',
+    documentos: 'documentos',
+    assinaturas: 'assinaturas'
   };
 
   let imported = 0;
@@ -454,6 +457,10 @@ async function importServerRecords(records = {}) {
 
           ...(localRecord?.Foto && !item.Foto
             ? { Foto: localRecord.Foto }
+            : {}),
+
+          ...(localRecord?.Assinatura && !item.Assinatura
+            ? { Assinatura: localRecord.Assinatura }
             : {}),
 
           id: String(id),

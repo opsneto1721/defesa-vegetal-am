@@ -141,9 +141,9 @@ const SYNC_PRIORITY = {
   providencias: 70,
   evidencias: 70,
 
-  assinaturas: 80,
+  documentos: 75,
 
-  documentos: 90
+  assinaturas: 80
 };
 
 function getSyncPriority(entity) {
@@ -475,6 +475,10 @@ async function syncCatalogs() {
   await setMeta(
     'lastCatalogSync',
     new Date().toISOString()
+  );
+
+  window.dispatchEvent(
+    new CustomEvent('catalogs-updated')
   );
 
   return true;
