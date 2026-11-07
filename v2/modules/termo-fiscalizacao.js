@@ -27,57 +27,94 @@ const TermoFiscalizacao = {
     return `
       @page { size: A4; margin: 7mm 10mm; }
       * { box-sizing: border-box; }
-      body { font-family: Arial, Helvetica, sans-serif; color: #000; font-size: 10.5pt; margin: 0; }
+      body { font-family: "Segoe UI", Roboto, Arial, Helvetica, sans-serif; color: #1b2430; font-size: 9.6pt; margin: 0; }
       .page { width: 190mm; margin: 0 auto; page-break-after: always; position: relative; }
       .page.last { page-break-after: auto; }
-      .gov { text-align: center; line-height: 1.2; margin-bottom: 1.5mm; }
-      .gov img { height: 14mm; }
-      .gov b { display: block; font-size: 9pt; }
       table { width: 100%; border-collapse: collapse; }
-      .frame { border: 1px solid #000; }
-      .frame td { border: 1px solid #000; padding: 0.9mm 1.6mm; vertical-align: top; }
-      .title { font-size: 18pt; font-weight: bold; white-space: nowrap; border-right: 0 !important; }
-      .num { text-align: right; border-left: 0 !important; white-space: nowrap; }
-      .num table { width: auto; margin-left: auto; }
-      .num td { border: 0 !important; padding: 0 1mm !important; text-align: center; }
-      .num .v { font-size: 12pt; font-weight: bold; border-bottom: 1px solid #000 !important; min-width: 22mm; }
-      .num .l { font-size: 7pt; font-weight: bold; }
-      .prov { color: #b00; font-size: 7pt; font-weight: bold; }
-      .sec { font-weight: bold; font-size: 11.5pt; background: #fff; }
-      .sec small { font-weight: normal; font-size: 7.5pt; }
-      .lbl { font-size: 9pt; }
-      .val { font-weight: bold; }
-      .desc { text-align: justify; line-height: 1.45; height: 44mm; }
-      .desc.long { font-size: 9pt; line-height: 1.3; }
-      .desc.xlong { font-size: 8pt; line-height: 1.2; }
-      .legal { line-height: 1.35; height: 11mm; font-size: 9.5pt; }
-      .hint { font-size: 7pt; color: #333; text-align: center; }
-      .u { border-bottom: 1px dotted #000; font-weight: bold; }
-      .sig { text-align: center; }
-      .sig img { max-height: 12mm; max-width: 65mm; display: block; margin: 0 auto; }
-      .sig .line { border-top: 1px solid #000; margin: 0 6mm; padding-top: 0.8mm; font-size: 9pt; }
-      .sig .blank { height: 11mm; }
-      .elec { border: 1px dashed #176b3a; color: #176b3a; font-size: 7.5pt; padding: 1.5mm; margin: 0 8mm 1mm; text-align: center; }
-      .refused { color: #b00; font-size: 8.5pt; font-weight: bold; height: 11mm; padding-top: 6mm; }
-      .wit td { border: 0 !important; padding: 0.6mm 0 !important; font-size: 9pt; }
-      .vias { width: 100%; margin-top: 2mm; font-size: 9pt; border-top: 1px solid #000; }
-      .vias td { text-align: center; padding-top: 1mm; }
-      .foot { margin-top: 2.5mm; width: 100%; }
-      .foot td { vertical-align: middle; }
-      .addr { font-size: 6.8pt; color: #1f3a6b; line-height: 1.3; }
-      .foot img { height: 11mm; }
-      .sepror { font-size: 8.5pt; font-weight: bold; color: #1f3a6b; text-align: center; }
-      .draft { position: absolute; top: 95mm; left: 0; right: 0; text-align: center; font-size: 46pt; color: rgba(200,0,0,0.13); font-weight: bold; transform: rotate(-24deg); }
-      .anx-head { border-bottom: 2px solid #000; padding-bottom: 1.5mm; margin-bottom: 3mm; }
-      .anx-head b { font-size: 11pt; }
-      .anx-head span { float: right; font-size: 8.5pt; }
-      h3 { font-size: 10pt; margin: 4mm 0 1.5mm; }
-      .grid td, .grid th { border: 1px solid #777; padding: 1mm 1.5mm; font-size: 8.5pt; text-align: left; vertical-align: top; }
-      .grid th { background: #e8efe9; }
-      .photos td { width: 33%; padding: 1.5mm; vertical-align: top; font-size: 8pt; text-align: center; }
-      .photos img { width: 100%; max-height: 55mm; object-fit: contain; border: 1px solid #aaa; }
-      .hash { font-size: 7pt; color: #444; margin-top: 4mm; word-break: break-all; }
-      .noprint { position: fixed; top: 8px; right: 8px; padding: 8px 14px; font-size: 14px; }
+
+      /* Cabeçalho institucional */
+      .hdr td { vertical-align: middle; }
+      .hdr .brasao img { height: 14mm; display: block; }
+      .hdr .org { padding-left: 3mm; line-height: 1.3; }
+      .hdr .org .gov { font-size: 8pt; letter-spacing: 0.06em; color: #4a5866; }
+      .hdr .org .ag { font-size: 9.2pt; font-weight: 700; color: #12335f; }
+      .hdr .org .ger { font-size: 8pt; color: #4a5866; }
+      .hdr .logo { text-align: right; }
+      .hdr .logo img { height: 12mm; }
+      .rule { height: 1mm; background: #12335f; margin: 1.5mm 0 0; }
+      .rule2 { height: 0.5mm; background: #1f8a4c; margin-bottom: 2mm; }
+
+      /* Título e número */
+      .titlebar td { vertical-align: middle; }
+      .title { font-size: 17pt; font-weight: 800; color: #12335f; letter-spacing: 0.01em; }
+      .title small { display: block; font-size: 8pt; font-weight: 400; color: #4a5866; letter-spacing: 0.04em; }
+      .num { text-align: right; }
+      .numbox { display: inline-block; border: 1.4px solid #12335f; border-radius: 2mm; padding: 1.2mm 2.5mm; }
+      .numbox table { width: auto; }
+      .numbox td { padding: 0 1mm; text-align: center; }
+      .numbox .v { font-size: 13pt; font-weight: 800; color: #12335f; }
+      .numbox .sep { color: #9aa7b4; font-size: 12pt; }
+      .numbox .l { font-size: 6.2pt; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7886; }
+      .prov { color: #b42318; font-size: 7pt; font-weight: 700; margin-top: 1mm; }
+
+      /* Seções */
+      .sec { margin-top: 2.2mm; }
+      .sec-h { font-size: 9pt; font-weight: 800; color: #12335f; text-transform: uppercase; letter-spacing: 0.06em; padding-bottom: 1mm; border-bottom: 1px solid #12335f; margin-bottom: 1.5mm; }
+      .sec-h .n { display: inline-block; width: 5mm; height: 5mm; line-height: 5mm; border-radius: 50%; background: #12335f; color: #fff; text-align: center; font-size: 8pt; margin-right: 1.5mm; }
+      .sec-h small { text-transform: none; letter-spacing: 0; font-weight: 400; color: #6b7886; font-size: 7pt; }
+
+      .fields td { border: 1px solid #d5dde5; padding: 0.8mm 2mm 1mm; vertical-align: top; }
+      .fields .k { display: block; font-size: 6.4pt; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7886; margin-bottom: 0.4mm; }
+      .fields .v2 { font-weight: 600; font-size: 9.4pt; min-height: 4mm; display: block; }
+
+      .desc { border: 1px solid #d5dde5; border-left: 1.2mm solid #1f8a4c; background: #f6f9f7; padding: 2.2mm 3mm; text-align: justify; line-height: 1.45; min-height: 38mm; }
+      .desc.long { font-size: 8.6pt; line-height: 1.35; }
+      .desc.xlong { font-size: 7.8pt; line-height: 1.25; }
+      .lead { color: #4a5866; }
+      .u { font-weight: 700; color: #1b2430; border-bottom: 1px dotted #6b7886; }
+      .legal { border: 1px solid #d5dde5; padding: 2mm 3mm; line-height: 1.35; min-height: 11mm; font-size: 9pt; }
+      .anexo-note { font-style: italic; color: #4a5866; font-size: 8.4pt; }
+
+      /* Assinaturas */
+      .signs { margin-top: 2.2mm; }
+      .signs > tbody > tr > td { vertical-align: top; }
+      .box { border: 1px solid #d5dde5; border-radius: 1.5mm; padding: 1.6mm 2.5mm; }
+      .box-h { font-size: 7.4pt; font-weight: 800; color: #12335f; text-transform: uppercase; letter-spacing: 0.06em; }
+      .box-sub { font-size: 7pt; color: #6b7886; }
+      .gap { width: 3mm; }
+      .sig { text-align: center; margin-top: 1mm; }
+      .sig img { max-height: 12mm; max-width: 62mm; display: block; margin: 0 auto; }
+      .sig .line { border-top: 1px solid #1b2430; margin: 0 4mm; padding-top: 0.8mm; font-size: 8pt; color: #4a5866; }
+      .sig .line b { color: #1b2430; font-size: 8.6pt; }
+      .sig .blank { height: 9mm; }
+      .elec { border: 1px solid #1f8a4c; background: #eef7f1; color: #17673a; border-radius: 1.2mm; font-size: 7pt; padding: 1.2mm; margin: 0 6mm 1mm; text-align: center; line-height: 1.3; }
+      .refused { color: #b42318; font-size: 8pt; font-weight: 700; height: 11mm; padding-top: 6mm; }
+      .wit td { padding: 0.5mm 0; font-size: 8pt; color: #4a5866; }
+      .wit b { color: #1b2430; }
+      .recv { font-size: 8pt; color: #4a5866; margin: 1mm 0; }
+
+      /* Rodapé */
+      .vias { margin-top: 2mm; }
+      .vias td { text-align: center; font-size: 7pt; color: #4a5866; }
+      .vias span { border: 1px solid #d5dde5; border-radius: 3mm; padding: 0.6mm 3mm; }
+      .foot { margin-top: 2mm; border-top: 1px solid #d5dde5; padding-top: 1.5mm; }
+      .foot td { vertical-align: middle; font-size: 6.6pt; color: #4a5866; line-height: 1.35; }
+      .foot .r { text-align: right; font-weight: 700; color: #12335f; font-size: 7.4pt; }
+
+      .draft { position: absolute; top: 105mm; left: 0; right: 0; text-align: center; font-size: 50pt; color: rgba(180,35,24,0.10); font-weight: 800; transform: rotate(-24deg); letter-spacing: 0.1em; }
+
+      /* Anexo */
+      .anx-head td { vertical-align: middle; }
+      .anx-title { font-size: 11pt; font-weight: 800; color: #12335f; }
+      .anx-sub { font-size: 8pt; color: #4a5866; text-align: right; }
+      h3 { font-size: 8.6pt; margin: 4mm 0 1.5mm; color: #12335f; text-transform: uppercase; letter-spacing: 0.06em; }
+      .grid th, .grid td { border: 1px solid #d5dde5; padding: 1.1mm 1.6mm; font-size: 8.2pt; text-align: left; vertical-align: top; }
+      .grid th { background: #12335f; color: #fff; font-weight: 600; font-size: 7.6pt; }
+      .grid tr:nth-child(even) td { background: #f6f8fa; }
+      .photos td { width: 33%; padding: 1.5mm; vertical-align: top; font-size: 7.6pt; text-align: center; color: #4a5866; }
+      .photos img { width: 100%; max-height: 55mm; object-fit: contain; border: 1px solid #d5dde5; border-radius: 1mm; }
+      .hash { font-size: 6.8pt; color: #6b7886; margin-top: 4mm; word-break: break-all; border-top: 1px solid #d5dde5; padding-top: 1.5mm; }
+      .noprint { position: fixed; top: 8px; right: 8px; padding: 8px 14px; font-size: 14px; border: 0; border-radius: 8px; background: #12335f; color: #fff; }
       @media print { .noprint { display: none; } }
     `;
   },
@@ -96,10 +133,10 @@ const TermoFiscalizacao = {
   witness(w, index) {
     return `
       <table class="wit">
-        <tr><td>Nome: <span class="u">${this.esc(w?.nome || '')}</span>${w?.nome ? '' : '_______________________________'}</td></tr>
-        <tr><td>CPF/RG: <span class="u">${this.esc(w?.doc || '')}</span>${w?.doc ? '' : '_____________________________'}</td></tr>
+        <tr><td>Testemunha ${index} — Nome: <b>${this.esc(w?.nome || '')}</b>${w?.nome ? '' : '______________________'}</td></tr>
+        <tr><td>CPF/RG: <b>${this.esc(w?.doc || '')}</b>${w?.doc ? '' : '______________________'}</td></tr>
       </table>
-      ${this.signature(w?.image ? { image: w.image } : null, '', `Assinatura (testemunha ${index})`)}`;
+      ${this.signature(w?.image ? { image: w.image } : null, '', 'Assinatura')}`;
   },
 
   /*
@@ -126,103 +163,95 @@ const TermoFiscalizacao = {
     const hasAnexo = ctx.anexo && (ctx.anexo.secoes?.some(s => s.linhas.length) || ctx.anexo.fotos?.length);
     const numeroTexto = n.seq ? `${n.seq}-${n.ano}-${n.unidade}` : '';
 
+    const field = (k, v, attrs = '') => `<td ${attrs}><span class="k">${k}</span><span class="v2">${e(v)}</span></td>`;
+    const header = `
+      <table class="hdr"><tr>
+        <td class="brasao" style="width:19mm"><img src="${TERMO_ASSETS.brasaoAM}" alt=""></td>
+        <td class="org">
+          <div class="gov">GOVERNO DO ESTADO DO AMAZONAS</div>
+          <div class="ag">Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM</div>
+          <div class="ger">Gerência de Defesa Vegetal</div>
+        </td>
+        <td class="logo" style="width:26mm"><img src="${TERMO_ASSETS.logoADAF}" alt="ADAF"></td>
+      </tr></table>
+      <div class="rule"></div><div class="rule2"></div>`;
+
     const page1 = `
       <div class="page ${hasAnexo ? '' : 'last'}">
         ${ctx.preview ? '<div class="draft">PRÉVIA</div>' : ''}
-        <div class="gov">
-          <img src="${TERMO_ASSETS.brasaoAM}" alt=""><br>
-          <b>GOVERNO DO ESTADO DO AMAZONAS</b>
-          <b>Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM</b>
+        ${header}
+
+        <table class="titlebar"><tr>
+          <td class="title">TERMO DE FISCALIZAÇÃO<small>Defesa Sanitária Vegetal</small></td>
+          <td class="num">
+            <div class="numbox"><table>
+              <tr><td class="v">${e(n.seq || '')}</td><td class="sep">-</td><td class="v">${e(n.ano || '')}</td><td class="sep">-</td><td class="v">${e(n.unidade || '')}</td></tr>
+              <tr><td class="l">Nº sequencial</td><td></td><td class="l">Ano</td><td></td><td class="l">Unidade</td></tr>
+            </table></div>
+            ${n.provisorio ? '<div class="prov">NÚMERO PROVISÓRIO — o definitivo será atribuído na sincronização</div>' : ''}
+          </td>
+        </tr></table>
+
+        <div class="sec">
+          <div class="sec-h"><span class="n">1</span>Identificação</div>
+          <table class="fields">
+            <tr>${field('Nome', id.nome, 'style="width:46%"')}${field('CPF', id.cpf, 'style="width:22%"')}${field('Atividade', id.atividade, 'style="width:32%"')}</tr>
+            <tr>${field('Empresa / Nome fantasia', id.empresa)}${field('CNPJ', id.cnpj)}${field('Atividade', id.atividadeEmpresa)}</tr>
+            <tr>${field('Endereço', id.endereco, 'colspan="3"')}</tr>
+            <tr>${field('Município', id.municipio)}${field('UF', id.uf)}${field('Telefone', id.telefone)}</tr>
+            <tr>${field('Coordenadas geográficas (lat / long)', id.lat || id.lng ? `${id.lat} / ${id.lng}` : '', 'colspan="3"')}</tr>
+          </table>
         </div>
 
-        <table class="frame">
-          <tr>
-            <td colspan="2" class="title">TERMO DE FISCALIZAÇÃO N°</td>
-            <td colspan="2" class="num">
-              <table>
-                <tr>
-                  <td class="v">${e(n.seq || '')}</td><td>-</td>
-                  <td class="v">${e(n.ano || '')}</td><td>-</td>
-                  <td class="v">${e(n.unidade || '')}</td>
-                </tr>
-                <tr>
-                  <td class="l">N° sequencial</td><td></td>
-                  <td class="l">Ano</td><td></td>
-                  <td class="l">Unidade</td>
-                </tr>
-              </table>
-              ${n.provisorio ? '<div class="prov">NÚMERO PROVISÓRIO — o definitivo será atribuído na sincronização</div>' : ''}
-            </td>
-          </tr>
-
-          <tr><td colspan="4" class="sec">1- Identificação</td></tr>
-          <tr>
-            <td style="width:42%"><span class="lbl">Nome:</span> <span class="val">${e(id.nome)}</span></td>
-            <td colspan="2" style="width:28%"><span class="lbl">CPF:</span> <span class="val">${e(id.cpf)}</span></td>
-            <td style="width:30%"><span class="lbl">Atividade:</span> <span class="val">${e(id.atividade)}</span></td>
-          </tr>
-          <tr>
-            <td><span class="lbl">Empresa / Fantasia:</span> <span class="val">${e(id.empresa)}</span></td>
-            <td colspan="2"><span class="lbl">CNPJ:</span> <span class="val">${e(id.cnpj)}</span></td>
-            <td><span class="lbl">Atividade:</span> <span class="val">${e(id.atividadeEmpresa)}</span></td>
-          </tr>
-          <tr><td colspan="4"><span class="lbl">Endereço:</span> <span class="val">${e(id.endereco)}</span></td></tr>
-          <tr>
-            <td><span class="lbl">Município:</span> <span class="val">${e(id.municipio)}</span></td>
-            <td colspan="2"><span class="lbl">UF:</span> <span class="val">${e(id.uf)}</span></td>
-            <td><span class="lbl">Telefone:</span> <span class="val">${e(id.telefone)}</span></td>
-          </tr>
-          <tr><td colspan="4"><span class="lbl">Coordenadas Geográficas:</span>
-            <span class="val">${e(id.lat)}</span> &nbsp;/&nbsp; <span class="val">${e(id.lng)}</span></td></tr>
-
-          <tr><td colspan="4" class="sec">2 – Descrição da Ação</td></tr>
-          <tr><td colspan="4" class="desc ${String(a.descricao || '').length > 1500 ? 'xlong' : String(a.descricao || '').length > 950 ? 'long' : ''}">
-            Em <span class="u">${e(a.data)}</span> às <span class="u">${e(a.hora)}</span> hora(s) ao realizar fiscalização
-            no(a) <span class="u">${e(a.local)}</span> constatei:<br>
+        <div class="sec">
+          <div class="sec-h"><span class="n">2</span>Descrição da ação</div>
+          <div class="desc ${String(a.descricao || '').length > 1500 ? 'xlong' : String(a.descricao || '').length > 950 ? 'long' : ''}">
+            <span class="lead">Em <span class="u">${e(a.data)}</span> às <span class="u">${e(a.hora)}</span> hora(s), ao realizar fiscalização no(a)
+            <span class="u">${e(a.local)}</span>, constatei:</span><br>
             ${this.text(a.descricao)}
-            ${hasAnexo ? '<br><i>(Detalhamento técnico no Anexo I deste termo.)</i>' : ''}
-          </td></tr>
+            ${hasAnexo ? '<br><span class="anexo-note">Detalhamento técnico no Anexo I deste termo.</span>' : ''}
+          </div>
+        </div>
 
-          <tr><td colspan="4" class="sec">3 – Enquadramento Legal
-            <small>(citar leis, decretos, resoluções, portarias, instruções normativas, artigos, incisos e alíneas)</small></td></tr>
-          <tr><td colspan="4" class="legal">${this.text(ctx.enquadramento || '')}</td></tr>
+        <div class="sec">
+          <div class="sec-h"><span class="n">3</span>Enquadramento legal
+            <small>— leis, decretos, resoluções, portarias, instruções normativas, artigos, incisos e alíneas</small></div>
+          <div class="legal">${this.text(ctx.enquadramento || '')}</div>
+        </div>
 
-          <tr>
-            <td colspan="2" rowspan="2" style="width:50%">
-              <div class="sec">4 – Testemunhas</div>
-              <div class="hint">(necessário apenas quando o autuado se negar em assinar o documento ou quando estiver ausente).</div>
+        <table class="signs"><tr>
+          <td style="width:50%">
+            <div class="box">
+              <div class="box-h"><span class="n" style="display:inline-block;width:4.2mm;height:4.2mm;line-height:4.2mm;border-radius:50%;background:#12335f;color:#fff;text-align:center;font-size:7pt;margin-right:1mm">4</span>Testemunhas</div>
+              <div class="box-sub">Necessárias apenas quando o autuado se negar a assinar ou estiver ausente.</div>
               ${this.witness(wits[0], 1)}
               ${this.witness(wits[1], 2)}
-            </td>
-            <td colspan="2">
-              <b>Recebi a 2ªvia deste Termo em:</b><br>
-              <span class="lbl">${r.quando ? e(r.quando) + (r.local ? ' — ' + e(r.local) : '') : '<span class="hint">(Data, hora e local).</span>'}</span>
-              <br>
-              ${this.signature(r.assinatura, r.nome, r.qualificacao ? 'Assinatura — ' + r.qualificacao : 'Assinatura')}
-            </td>
-          </tr>
-          <tr>
-            <td colspan="2">
-              ${this.signature(sv.assinatura, sv.nome, [sv.cargo, sv.matricula ? 'Matrícula ' + sv.matricula : ''].filter(Boolean).join(' — ') || 'Servidor da ADAF')}
-              <div style="text-align:center;font-weight:bold;font-size:10pt">Assinatura e Identificação do Servidor da ADAF</div>
-            </td>
-          </tr>
-        </table>
+            </div>
+          </td>
+          <td class="gap"></td>
+          <td style="width:50%">
+            <div class="box">
+              <div class="box-h">Recebimento da 2ª via</div>
+              <div class="recv">Recebi a 2ª via deste Termo em: <b>${r.quando ? e(r.quando) + (r.local ? ' — ' + e(r.local) : '') : '____/____/______, ____:____, ____________'}</b></div>
+              ${this.signature(r.assinatura, r.nome, r.qualificacao || 'Assinatura')}
+            </div>
+            <div class="box" style="margin-top:2.5mm">
+              <div class="box-h">Servidor da ADAF</div>
+              ${this.signature(sv.assinatura, sv.nome, [sv.cargo, sv.matricula ? 'Matrícula ' + sv.matricula : ''].filter(Boolean).join(' — ') || 'Assinatura e identificação')}
+            </div>
+          </td>
+        </tr></table>
 
         <table class="vias"><tr>
-          <td>1ª via: Interessado</td><td>2ª via: ADAF Central</td><td>3ª via: Unidade Local</td>
+          <td><span>1ª via: Interessado</span></td><td><span>2ª via: ADAF Central</span></td><td><span>3ª via: Unidade Local</span></td>
         </tr></table>
 
         <table class="foot"><tr>
-          <td style="width:38%" class="addr">
-            Avenida Carlos Drummond de Andrade, 1460 Japiim<br>
-            Conj. Atílio Andreazza. ULBRA, Bloco G, 1º andar<br>
-            Fone: (92) 99192-3067 / 99983-1176<br>
-            Manaus-AM-CEP 69077-730<br>
-            E-mail: gabinete@adaf.am.gov.br
+          <td style="width:62%">
+            Av. Carlos Drummond de Andrade, 1460 – Japiim, Conj. Atílio Andreazza, ULBRA, Bloco G, 1º andar – Manaus/AM – CEP 69077-730<br>
+            Fone: (92) 99192-3067 / 99983-1176 • E-mail: gabinete@adaf.am.gov.br
           </td>
-          <td style="width:24%;text-align:center"><img src="${TERMO_ASSETS.logoADAF}" alt="ADAF"></td>
-          <td style="width:38%" class="sepror">Secretaria de Produção Rural do Estado<br>do Amazonas – SEPROR/AM</td>
+          <td class="r">Secretaria de Produção Rural do Estado do Amazonas – SEPROR/AM</td>
         </tr></table>
       </div>`;
 
@@ -249,8 +278,11 @@ const TermoFiscalizacao = {
       anexo = `
         <div class="page last">
           ${ctx.preview ? '<div class="draft">PRÉVIA</div>' : ''}
-          <div class="anx-head"><b>ANEXO I — TERMO DE FISCALIZAÇÃO N° ${e(numeroTexto || '(a definir)')}</b>
-            <span>${e(ax.titulo || '')}</span></div>
+          ${header}
+          <table class="anx-head"><tr>
+            <td class="anx-title">ANEXO I — TERMO DE FISCALIZAÇÃO N° ${e(numeroTexto || '(a definir)')}</td>
+            <td class="anx-sub">${e(ax.titulo || '')}</td>
+          </tr></table>
           ${sections}
           ${photos}
           ${ax.hash ? `<div class="hash">Código de integridade do documento (SHA-256): ${e(ax.hash)}</div>` : ''}

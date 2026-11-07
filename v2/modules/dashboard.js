@@ -1,6 +1,11 @@
 /* =========================================================
    DEFESA VEGETAL AM - V2
-   MÓDULO: DASHBOARD DE CADASTROS
+   MÓDULO: DASHBOARD
+
+   Indicadores de fiscalização e de cadastros.
+   Filtros (período, município, programa) no topo valem
+   para todos os indicadores e gráficos abaixo.
+   Cada gráfico tem valor no toque/hover e tabela.
 ========================================================= */
 
 const DashboardModule = {
@@ -9,68 +14,224 @@ const DashboardModule = {
   propriedades: [],
   culturas: [],
 
+  filters: {
+    periodo: '365',
+    municipio: '',
+    programa: ''
+  },
+
 
   /* =======================================================
      ABRIR DASHBOARD
   ======================================================= */
 
   async open() {
-
-    console.log(
-      'Abrindo Dashboard de Cadastros...'
-    );
-
-    const main =
-      document.querySelector('main');
-
-    if (!main) {
-      console.error(
-        'Elemento <main> não encontrado.'
-      );
-      return;
-    }
+    const main = document.querySelector('main');
+    if (!main) return;
 
     main.innerHTML = `
       <section class="module-page">
-
         <div class="module-header">
-
-          <button
-            type="button"
-            class="btn btn-secondary"
-            onclick="App.showHome()"
-          >
-            ← Voltar
-          </button>
-
+          <button type="button" class="btn btn-secondary" onclick="App.showHome()">← Voltar</button>
           <div>
-
-            <h2>
-              Dashboard de Cadastros
-            </h2>
-
-            <p>
-              Visão geral dos produtores,
-              propriedades e culturas cadastradas.
-            </p>
-
+            <h2>Dashboard</h2>
+            <p>Indicadores de fiscalização, situação fitossanitária e cadastros.</p>
           </div>
-
         </div>
 
+        <div class="db-filters" role="group" aria-label="Filtros do dashboard">
+          <label>Período
+            <select id="dbPeriodo">
+              <option value="30">Últimos 30 dias</option>
+              <option value="90">Últimos 90 dias</option>
+              <option value="365">Últimos 12 meses</option>
+              <option value="ano">Ano atual</option>
+              <option value="">Todo o período</option>
+            </select>
+          </label>
+          <label>Município
+            <select id="dbMunicipio"><option value="">Todos</option></select>
+          </label>
+          <label>Programa
+            <select id="dbPrograma"><option value="">Todos</option></select>
+          </label>
+        </div>
 
-        <section id="dashboardContent">
-
-          <p>
-            Carregando indicadores...
-          </p>
-
-        </section>
-
-      </section>
-    `;
+        <section id="dashboardContent"><p>Carregando indicadores...</p></section>
+        <div id="dbTooltip" class="db-tooltip" role="tooltip" hidden></div>
+      </section>`;
 
     await this.load();
+  },
+
+
+  /* =======================================================
+     UTILITÁRIOS
+  ======================================================= */
+
+  num(value, digits = 0) {
+    return Number(value || 0).toLocaleString('pt-BR', {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits
+    });
+  },
+
+  active(list) {
+    return list.filter(item => item.Excluido !== 'SIM');
+  },
+
+  status(f) {
+    if (f.Status_Fiscalizacao) return f.Status_Fiscalizacao;
+    return { RASCUNHO: 'EM_ANDAMENTO', CONCLUIDA: 'FINALIZADA' }[f.Status] || f.Status || 'EM_ANDAMENTO';
+  },
+
+  dateOf(f) {
+    const s = String(f.Data_Hora_Inicio || f.Data_Fiscalizacao || f.localCreatedAt || '');
+    const d = new Date(s.length === 16 ? s + ':00' : s);
+    return isNaN(d) ? null : d;
+  },
+
+  inPeriod(date) {
+    const p = this.filters.periodo;
+    if (!p || !date) return !p;
+    const now = new Date();
+    if (p === 'ano') return date.getFullYear() === now.getFullYear();
+    return (now - date) / 86400000 <= Number(p);
+  },
+
+  count(list, keyFn) {
+    const map = new Map();
+    list.forEach(item => {
+      const keys = [].concat(keyFn(item)).filter(Boolean);
+      keys.forEach(k => map.set(k, (map.get(k) || 0) + 1));
+    });
+    return [...map.entries()].sort((a, b) => b[1] - a[1]);
+  },
+
+
+  /* =======================================================
+     GRÁFICOS (HTML + CSS, sem bibliotecas)
+  ======================================================= */
+
+  /* Barras horizontais ranqueadas — uma série, uma cor */
+  rankedBars(id, rows, { unit = '', max = 8, emptyText = 'Sem dados no período.' } = {}) {
+    if (!rows.length) return `<p class="dashboard-empty">${emptyText}</p>`;
+    const shown = rows.slice(0, max);
+    const rest = rows.slice(max);
+    if (rest.length) shown.push(['Outros', rest.reduce((t, r) => t + r[1], 0)]);
+    const top = Math.max(...shown.map(r => r[1]), 1);
+
+    return `
+      <div class="db-hbars">
+        ${shown.map(([label, value]) => `
+          <div class="db-hbar" tabindex="0" data-tip-label="${this.escapeHtml(label)}" data-tip-value="${this.num(value)}${unit}">
+            <span class="db-hbar-label">${this.escapeHtml(label)}</span>
+            <span class="db-hbar-track"><span class="db-hbar-fill" style="width:${Math.max(2, value / top * 100)}%"></span></span>
+            <span class="db-hbar-value">${this.num(value)}</span>
+          </div>`).join('')}
+      </div>
+      ${this.tableView(id, ['Categoria', 'Quantidade'], rows.map(r => [r[0], this.num(r[1])]))}`;
+  },
+
+  /* Colunas por mês — uma série */
+  monthColumns(id, months) {
+    const raw = Math.max(...months.map(m => m.value), 1);
+    const total = months.reduce((t, m) => t + m.value, 0);
+    if (!total) return '<p class="dashboard-empty">Nenhuma fiscalização no período.</p>';
+    // Escala "redonda" e par, para a linha do meio ser um número inteiro
+    const step = raw <= 4 ? 2 : raw <= 10 ? 2 : raw <= 50 ? 10 : 50;
+    const top = Math.ceil(raw / step) * step;
+    const ticks = [top, top / 2, 0];
+
+    return `
+      <div class="db-cols-wrap">
+        <div class="db-cols-axis">${ticks.map(t => `<span>${this.num(t)}</span>`).join('')}</div>
+        <div class="db-cols">
+          ${months.map(m => `
+            <div class="db-col" tabindex="0" data-tip-label="${m.label}" data-tip-value="${this.num(m.value)} fiscalização(ões)">
+              <span class="db-col-bar" style="height:${m.value ? Math.max(3, m.value / top * 100) : 0}%"></span>
+              <span class="db-col-label">${m.short}</span>
+            </div>`).join('')}
+        </div>
+      </div>
+      ${this.tableView(id, ['Mês', 'Fiscalizações'], months.map(m => [m.label, this.num(m.value)]))}`;
+  },
+
+  /* Barra segmentada (parte do todo) — situação fitossanitária, cores de status */
+  statusBar(id, parts) {
+    const total = parts.reduce((t, p) => t + p.value, 0);
+    if (!total) return '<p class="dashboard-empty">Nenhuma fiscalização finalizada no período.</p>';
+
+    return `
+      <div class="db-stack" role="img" aria-label="${parts.map(p => `${p.label}: ${p.value}`).join(', ')}">
+        ${parts.filter(p => p.value).map(p => `
+          <span class="db-stack-seg db-${p.key}" tabindex="0" style="flex:${p.value}"
+            data-tip-label="${p.label}" data-tip-value="${this.num(p.value)} (${this.num(p.value / total * 100, 0)}%)"></span>`).join('')}
+      </div>
+      <div class="db-legend">
+        ${parts.map(p => `
+          <span><i class="db-key db-${p.key}"></i>${p.icon} ${p.label} <b>${this.num(p.value)}</b>
+          <small>${this.num(p.value / total * 100, 0)}%</small></span>`).join('')}
+      </div>
+      ${this.tableView(id, ['Situação', 'Fiscalizações', '%'], parts.map(p => [p.label, this.num(p.value), this.num(p.value / total * 100, 1) + '%']))}`;
+  },
+
+  tableView(id, headers, rows) {
+    if (!rows.length) return '';
+    return `
+      <details class="db-table">
+        <summary>Ver tabela</summary>
+        <table>
+          <thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>
+          <tbody>${rows.map(r => `<tr>${r.map(c => `<td>${this.escapeHtml(c)}</td>`).join('')}</tr>`).join('')}</tbody>
+        </table>
+      </details>`;
+  },
+
+  statTile(label, value, sub = '', tone = '') {
+    return `
+      <article class="dashboard-card db-stat ${tone}">
+        <span>${label}</span>
+        <strong>${value}</strong>
+        ${sub ? `<small>${sub}</small>` : ''}
+      </article>`;
+  },
+
+  card(title, subtitle, body, wide = false) {
+    return `
+      <section class="dashboard-section ${wide ? 'db-wide' : ''}">
+        <div class="dashboard-section-header"><div>
+          <h3>${title}</h3>${subtitle ? `<p>${subtitle}</p>` : ''}
+        </div></div>
+        ${body}
+      </section>`;
+  },
+
+  bindTooltips() {
+    const tip = document.getElementById('dbTooltip');
+    if (!tip) return;
+    const show = (el, x, y) => {
+      tip.replaceChildren();
+      const v = document.createElement('strong');
+      v.textContent = el.dataset.tipValue;
+      const l = document.createElement('span');
+      l.textContent = el.dataset.tipLabel;
+      tip.append(v, l);
+      tip.hidden = false;
+      const w = tip.offsetWidth;
+      tip.style.left = Math.min(window.innerWidth - w - 8, Math.max(8, x - w / 2)) + 'px';
+      tip.style.top = (y - tip.offsetHeight - 12) + 'px';
+    };
+    document.querySelectorAll('[data-tip-value]').forEach(el => {
+      el.addEventListener('pointermove', e => show(el, e.clientX, e.clientY));
+      el.addEventListener('pointerdown', e => show(el, e.clientX, e.clientY));
+      el.addEventListener('pointerleave', () => { tip.hidden = true; });
+      el.addEventListener('focus', () => {
+        const r = el.getBoundingClientRect();
+        show(el, r.left + r.width / 2, r.top);
+      });
+      el.addEventListener('blur', () => { tip.hidden = true; });
+    });
   },
 
 
@@ -79,366 +240,162 @@ const DashboardModule = {
   ======================================================= */
 
   async load() {
+    const container = document.getElementById('dashboardContent');
+    if (!container) return;
 
-    const container =
-      document.getElementById(
-        'dashboardContent'
-      );
-
-    if (!container) {
-      return;
-    }
+    container.classList.add('db-loading');
 
     try {
+      const [produtores, propriedades, culturas, fiscs, fcs, occs, amostras, provs, docs, programas] = await Promise.all([
+        dbGetAll('produtores'), dbGetAll('propriedades'), dbGetAll('culturas'),
+        dbGetAll('fiscalizacoes'), dbGetAll('fiscalizacaoCulturas'), dbGetAll('ocorrenciasPragas'),
+        dbGetAll('amostras'), dbGetAll('providencias'), dbGetAll('documentos'), dbGetAll('programasTecnicos')
+      ]);
 
-      this.produtores =
-        await dbGetAll('produtores');
+      this.produtores = produtores;
+      this.propriedades = propriedades;
+      this.culturas = culturas;
 
-      this.propriedades =
-        await dbGetAll('propriedades');
+      const progName = new Map(programas.map(p => [String(p.ID_Programa), p.Sigla_Programa || p.ID_Programa]));
 
-      this.culturas =
-        await dbGetAll('culturas');
+      /* Opções dos filtros (montadas uma vez) */
+      const munSel = document.getElementById('dbMunicipio');
+      const progSel = document.getElementById('dbPrograma');
+      const perSel = document.getElementById('dbPeriodo');
+      if (munSel && munSel.options.length === 1) {
+        const muns = [...new Set([...propriedades.map(p => p.Municipio), ...fiscs.map(f => f.Municipio)].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+        munSel.innerHTML += muns.map(m => `<option>${this.escapeHtml(m)}</option>`).join('');
+        progSel.innerHTML += [...progName.entries()].map(([id, sig]) => `<option value="${this.escapeHtml(id)}">${this.escapeHtml(sig)}</option>`).join('');
+        perSel.value = this.filters.periodo;
+        munSel.value = this.filters.municipio;
+        progSel.value = this.filters.programa;
+        const apply = () => {
+          this.filters = { periodo: perSel.value, municipio: munSel.value, programa: progSel.value };
+          this.load();
+        };
+        perSel.onchange = munSel.onchange = progSel.onchange = apply;
+      }
 
+      const F = this.filters;
 
-      const produtores =
-        this.produtores;
-
-      const propriedades =
-        this.propriedades;
-
-      const culturas =
-        this.culturas;
-
-
-      /* =====================================================
-         ÁREA TOTAL DE PRODUÇÃO
-      ===================================================== */
-
-      const areaTotal =
-        culturas.reduce(
-          (total, cultura) => {
-
-            const area =
-              Number(
-                cultura.Area_Producao_ha ||
-                cultura.areaProducao ||
-                cultura.area ||
-                0
-              );
-
-            return total + area;
-          },
-          0
-        );
-
-
-      /* =====================================================
-         PROPRIEDADES POR MUNICÍPIO
-      ===================================================== */
-
-      const propriedadesPorMunicipio = {};
-
-      propriedades.forEach(
-        propriedade => {
-
-          const municipio =
-            propriedade.Municipio ||
-            'Não informado';
-
-          propriedadesPorMunicipio[municipio] =
-            (
-              propriedadesPorMunicipio[municipio] ||
-              0
-            ) + 1;
-        }
+      /* Fiscalizações no recorte */
+      const fiscAll = this.active(fiscs);
+      const fiscF = fiscAll.filter(f =>
+        this.inPeriod(this.dateOf(f)) &&
+        (!F.municipio || f.Municipio === F.municipio) &&
+        (!F.programa || String(f.ID_Programa || '').split(',').includes(F.programa))
       );
+      const ids = new Set(fiscF.map(f => f.id));
+      const ofF = list => this.active(list).filter(x => ids.has(x.ID_Fiscalizacao_Local));
 
+      const finalizadas = fiscF.filter(f => this.status(f) === 'FINALIZADA');
+      const andamento = fiscF.filter(f => this.status(f) === 'EM_ANDAMENTO');
+      const occF = ofF(occs);
+      const detectadas = occF.filter(o => o.Resultado_Avaliacao === 'DETECTADA');
+      const suspeitas = occF.filter(o => o.Resultado_Avaliacao === 'SUSPEITA');
+      const amostrasF = ofF(amostras);
+      const provF = ofF(provs);
+      const hoje = new Date().toISOString().slice(0, 10);
+      const provPend = provF.filter(p => p.Status_Providencia !== 'CUMPRIDA');
+      const provVenc = provPend.filter(p => p.Prazo && p.Prazo < hoje);
+      const termos = ofF(docs).filter(d => d.Tipo_Documento === 'TERMO_FISCALIZACAO' && d.Status_Documento === 'EMITIDO');
+      const propsFisc = new Set(fiscF.map(f => f.ID_Propriedade_Local)).size;
 
-      const municipiosOrdenados =
-        Object.entries(
-          propriedadesPorMunicipio
-        )
-          .sort(
-            (a, b) => b[1] - a[1]
-          );
+      /* Fiscalizações por mês (últimos 12 meses ou ano) */
+      const now = new Date();
+      const months = [];
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        months.push({
+          key: `${d.getFullYear()}-${d.getMonth()}`,
+          short: d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', ''),
+          label: d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
+          value: 0
+        });
+      }
+      fiscAll.filter(f =>
+        (!F.municipio || f.Municipio === F.municipio) &&
+        (!F.programa || String(f.ID_Programa || '').split(',').includes(F.programa))
+      ).forEach(f => {
+        const d = this.dateOf(f);
+        if (!d) return;
+        const m = months.find(x => x.key === `${d.getFullYear()}-${d.getMonth()}`);
+        if (m) m.value++;
+      });
 
+      /* Situação fitossanitária das finalizadas */
+      const sit = key => finalizadas.filter(f => f.Situacao_Fitossanitaria === key).length;
+      const situacao = [
+        { key: 'good', label: 'Sem ocorrência', icon: '✓', value: sit('SEM_OCORRENCIA') },
+        { key: 'warning', label: 'Suspeita', icon: '!', value: sit('SUSPEITA') },
+        { key: 'critical', label: 'Ocorrência confirmada', icon: '✕', value: sit('COM_OCORRENCIA') }
+      ];
 
-      const maiorQuantidadeMunicipio =
-        Math.max(
-          ...municipiosOrdenados.map(
-            item => item[1]
-          ),
-          1
-        );
-
-
-      console.log(
-        'Dashboard:',
-        {
-          produtores,
-          propriedades,
-          culturas,
-          areaTotal,
-          propriedadesPorMunicipio
-        }
-      );
-
-
-      /* =====================================================
-         MONTAR DASHBOARD
-      ===================================================== */
+      /* Cadastros */
+      const areaTotal = culturas.reduce((t, c) => t + Number(String(c.Area_Producao_ha || c.Area_Plantada_ha || 0).replace(',', '.')) || t, 0);
 
       container.innerHTML = `
-
-        <!-- ===============================================
-             INDICADORES
-        ================================================ -->
-
+        <h3 class="db-group-title">Fiscalização</h3>
         <div class="dashboard-summary">
-
-          <article class="dashboard-card">
-
-            <span>
-              Produtores
-            </span>
-
-            <strong>
-              ${produtores.length}
-            </strong>
-
-          </article>
-
-
-          <article class="dashboard-card">
-
-            <span>
-              Propriedades
-            </span>
-
-            <strong>
-              ${propriedades.length}
-            </strong>
-
-          </article>
-
-
-          <article class="dashboard-card">
-
-            <span>
-              Culturas
-            </span>
-
-            <strong>
-              ${culturas.length}
-            </strong>
-
-          </article>
-
-
-          <article class="dashboard-card">
-
-            <span>
-              Área total de produção
-            </span>
-
-            <strong>
-
-              ${areaTotal.toLocaleString(
-                'pt-BR',
-                {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2
-                }
-              )} ha
-
-            </strong>
-
-          </article>
-
+          ${this.statTile('Fiscalizações', this.num(fiscF.length), `${this.num(propsFisc)} propriedade(s)`)}
+          ${this.statTile('Finalizadas', this.num(finalizadas.length), `${this.num(andamento.length)} em andamento`)}
+          ${this.statTile('Termos emitidos', this.num(termos.length))}
+          ${this.statTile('Pragas detectadas', this.num(detectadas.length), `${this.num(suspeitas.length)} suspeita(s)`, detectadas.length ? 'db-critical-tile' : '')}
+          ${this.statTile('Amostras coletadas', this.num(amostrasF.length))}
+          ${this.statTile('Providências pendentes', this.num(provPend.length), provVenc.length ? `⚠ ${this.num(provVenc.length)} com prazo vencido` : 'nenhuma vencida', provVenc.length ? 'db-warning-tile' : '')}
         </div>
 
+        <div class="db-grid">
+          ${this.card('Fiscalizações por mês', 'Últimos 12 meses (filtros de município e programa aplicados)', this.monthColumns('m', months), true)}
+          ${this.card('Situação fitossanitária', 'Fiscalizações finalizadas no período', this.statusBar('s', situacao))}
+          ${this.card('Pragas detectadas ou suspeitas', 'Ocorrências registradas no período', this.rankedBars('p', this.count([...detectadas, ...suspeitas], o => o.Nome_Praga)))}
+          ${this.card('Fiscalizações por programa', '', this.rankedBars('g', this.count(fiscF, f => String(f.ID_Programa || '').split(',').filter(Boolean).map(id => progName.get(id) || id)), { emptyText: 'Nenhuma fiscalização de programa no período.' }))}
+          ${this.card('Fiscalizações por município', '', this.rankedBars('u', this.count(fiscF, f => f.Municipio || 'Não informado')))}
+          ${this.card('Culturas fiscalizadas', '', this.rankedBars('c', this.count(ofF(fcs), c => c.Nome_Cultura_Local)))}
+          ${provVenc.length ? this.card('⚠ Providências com prazo vencido', 'Toque para abrir a fiscalização', `
+            <div class="db-list">${provVenc.sort((a, b) => a.Prazo.localeCompare(b.Prazo)).map(p => {
+              const f = fiscF.find(x => x.id === p.ID_Fiscalizacao_Local) || {};
+              return `<button type="button" class="result-card" onclick="FiscalizacoesModule.openFromAnywhere('${this.escapeHtml(f.id || '')}')">
+                <strong>${this.escapeHtml(p.Descricao)}</strong>
+                <span>${this.escapeHtml(f.Nome_Propriedade_Local || '')} • ${this.escapeHtml(f.Municipio || '')}</span>
+                <small>Prazo: ${p.Prazo.split('-').reverse().join('/')} • ${this.escapeHtml(f.Numero_Fiscalizacao || '')}</small></button>`;
+            }).join('')}</div>`, true) : ''}
+        </div>
 
-        <!-- ===============================================
-             CONSULTAR CADASTROS
-        ================================================ -->
+        <h3 class="db-group-title">Cadastros</h3>
+        <div class="dashboard-summary">
+          ${this.statTile('Produtores', this.num(produtores.length))}
+          ${this.statTile('Propriedades', this.num(propriedades.length))}
+          ${this.statTile('Culturas', this.num(culturas.length))}
+          ${this.statTile('Área de produção', this.num(areaTotal, 1) + ' ha')}
+        </div>
+
+        <div class="db-grid">
+          ${this.card('Propriedades por município', 'Todas as propriedades cadastradas', this.rankedBars('pm', this.count(propriedades, p => p.Municipio || 'Não informado'), { emptyText: 'Nenhuma propriedade cadastrada.' }))}
+          ${this.card('Culturas cadastradas', 'Por tipo de cultura', this.rankedBars('cc', this.count(culturas.filter(c => c.Status !== 'INATIVO'), c => c.Nome_Cultura_Local || c.ID_Tipo_Cultura), { emptyText: 'Nenhuma cultura cadastrada.' }))}
+        </div>
 
         <section class="dashboard-section">
-
-          <div class="dashboard-section-header">
-
-            <div>
-
-              <h3>
-                Consultar cadastros
-              </h3>
-
-              <p>
-                Visualize e pesquise produtores
-                e propriedades cadastradas.
-              </p>
-
-            </div>
-
-          </div>
-
-
+          <div class="dashboard-section-header"><div>
+            <h3>Consultar cadastros</h3>
+            <p>Visualize e pesquise produtores e propriedades cadastradas.</p>
+          </div></div>
           <div class="dashboard-consult-actions">
-
-            <button
-              type="button"
-              class="btn btn-primary"
-              onclick="DashboardModule.showProdutores()"
-            >
-              👤 Visualizar produtores
-            </button>
-
-
-            <button
-              type="button"
-              class="btn btn-secondary"
-              onclick="DashboardModule.showPropriedades()"
-            >
-              🌱 Visualizar propriedades
-            </button>
-
+            <button type="button" class="btn btn-primary" onclick="DashboardModule.showProdutores()">👤 Visualizar produtores</button>
+            <button type="button" class="btn btn-secondary" onclick="DashboardModule.showPropriedades()">🌱 Visualizar propriedades</button>
           </div>
-
-
-          <div
-            id="dashboardConsulta"
-            class="dashboard-consulta"
-          >
-
-            <p class="dashboard-empty">
-              Selecione uma opção acima
-              para consultar os cadastros.
-            </p>
-
+          <div id="dashboardConsulta" class="dashboard-consulta">
+            <p class="dashboard-empty">Selecione uma opção acima para consultar os cadastros.</p>
           </div>
+        </section>`;
 
-        </section>
-
-
-        <!-- ===============================================
-             PROPRIEDADES POR MUNICÍPIO
-        ================================================ -->
-
-        <section class="dashboard-section">
-
-          <div class="dashboard-section-header">
-
-            <div>
-
-              <h3>
-                Propriedades por município
-              </h3>
-
-              <p>
-                Distribuição das propriedades
-                cadastradas no sistema.
-              </p>
-
-            </div>
-
-          </div>
-
-
-          <div class="dashboard-chart">
-
-            ${
-              municipiosOrdenados.length
-
-                ? municipiosOrdenados
-                    .map(
-                      (
-                        [
-                          municipio,
-                          quantidade
-                        ]
-                      ) => {
-
-                        const percentual =
-                          (
-                            quantidade /
-                            maiorQuantidadeMunicipio
-                          ) * 100;
-
-                        return `
-
-                          <div
-                            class="dashboard-bar-row"
-                          >
-
-                            <div
-                              class="dashboard-bar-info"
-                            >
-
-                              <span>
-                                ${this.escapeHtml(
-                                  municipio
-                                )}
-                              </span>
-
-                              <strong>
-                                ${quantidade}
-                              </strong>
-
-                            </div>
-
-
-                            <div
-                              class="dashboard-bar-track"
-                            >
-
-                              <div
-                                class="dashboard-bar-fill"
-                                style="
-                                  width:
-                                  ${percentual}%;
-                                "
-                              ></div>
-
-                            </div>
-
-                          </div>
-
-                        `;
-                      }
-                    )
-                    .join('')
-
-                : `
-
-                  <p class="dashboard-empty">
-                    Nenhuma propriedade cadastrada.
-                  </p>
-
-                `
-            }
-
-          </div>
-
-        </section>
-
-      `;
-
+      this.bindTooltips();
     } catch (error) {
-
-      console.error(
-        'Erro ao carregar Dashboard:',
-        error
-      );
-
-      container.innerHTML = `
-
-        <p>
-          Não foi possível carregar
-          os dados do Dashboard.
-        </p>
-
-      `;
+      console.error('Erro ao carregar dashboard:', error);
+      container.innerHTML = `<div class="empty-state">Não foi possível carregar os indicadores.</div>`;
     }
+
+    container.classList.remove('db-loading');
   },
 
 

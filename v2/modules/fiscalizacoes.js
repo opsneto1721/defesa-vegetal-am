@@ -147,7 +147,7 @@ const FiscalizacoesModule = {
       return `${m[3]}/${m[2]}/${m[1]}${m[4] ? ' ' + m[4] + ':' + m[5] : ''}`;
     }
     try {
-      return new Date(s).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+      return new Date(s).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).replace(', ', ' ');
     } catch {
       return s;
     }
