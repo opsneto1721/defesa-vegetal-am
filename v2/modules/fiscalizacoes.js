@@ -231,6 +231,7 @@ const FiscalizacoesModule = {
         dbGetAll('pragaCultura'), dbGetAll('camposDinamicos'),
         dbGetAll('opcoesCampos'), dbGetAll('campoCultura')
       ]);
+    const listas = await dbGetAll('listasApoio');
 
     const culturas = new Map();
     tiposCultura.filter(c => this.yes(c.Ativo)).forEach(c => culturas.set(String(c.ID_Tipo_Cultura), {
@@ -267,7 +268,8 @@ const FiscalizacoesModule = {
       })),
       campos: campos.filter(c => String(c.Contexto).toUpperCase() === 'FISCALIZACAO' && this.yes(c.Ativo)),
       opcoes: opcoes.filter(o => this.yes(o.Ativo)),
-      campoCult: campoCult.filter(r => this.yes(r.Ativo))
+      campoCult: campoCult.filter(r => this.yes(r.Ativo)),
+      listas
     };
 
     return this.cat;
@@ -473,6 +475,9 @@ const FiscalizacoesModule = {
     el.textContent = this.catalogIsEmpty()
       ? 'Catálogos ainda não baixados'
       : `${this.cat.programas.size} programa(s) • ${this.cat.pragas.size} praga(s)`;
+    NumberPool.available().then(n => {
+      el.textContent += ` • ${n} nº de termo reservado(s)`;
+    });
   },
 
   async refreshCatalogs() {
@@ -482,6 +487,7 @@ const FiscalizacoesModule = {
     }
     try {
       await syncCatalogs();
+      await NumberPool.ensure();
       await this.loadCatalogs();
       App.showMessage('Programas, pragas e campos atualizados.', 'success');
     } catch (error) {
@@ -971,6 +977,9 @@ const FiscalizacoesModule = {
     const editable = this.isEditable();
     const data = await this.loadAll();
     const doc = await this.getDocument();
+    this.pendingResp = await getMeta(this.respSignKey());
+    this.pendingWitnesses = (await getMeta(this.witnessKey())) || [];
+    this.poolCount = await NumberPool.available();
 
     const openDetails = new Set([...ws.querySelectorAll('details[open]')].map(d => d.id).filter(Boolean));
 
@@ -1017,23 +1026,81 @@ const FiscalizacoesModule = {
     this.showGeneralForm(this.current);
   },
 
-  sectionHeader(title, count, formToggle, editable) {
+  sectionHeader(title, count, action, actionLabel, editable) {
     return `
       <div class="fz-section-header">
         <h4>${title} <span class="fz-count">${count}</span></h4>
-        ${editable && formToggle ? `<button type="button" class="btn btn-secondary fz-small" onclick="FiscalizacoesModule.toggle('${formToggle}')">+ Adicionar</button>` : ''}
+        ${editable && action ? `<button type="button" class="btn btn-secondary fz-small" onclick="${action}">${actionLabel || '+ Adicionar'}</button>` : ''}
       </div>`;
   },
 
-  toggle(id) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.hidden = !el.hidden;
-    if (!el.hidden) {
-      const first = el.querySelector('input, select, textarea');
-      if (first) first.focus();
-    }
+  /*
+    Janela (folha) para formulários secundários.
+    Em celular ocupa a tela inteira; no computador fica centralizada.
+  */
+  openSheet({ title, subtitle = '', body, submitLabel = 'Salvar', submitId = '', onSubmit, readOnly = false }) {
+    const overlay = document.createElement('div');
+    overlay.className = 'fz-sheet-overlay';
+    overlay.innerHTML = `
+      <form class="fz-sheet" novalidate>
+        <div class="fz-sheet-head">
+          <div>
+            <h3>${title}</h3>
+            ${subtitle ? `<p>${subtitle}</p>` : ''}
+          </div>
+          <button type="button" class="fz-sheet-close" aria-label="Fechar">✕</button>
+        </div>
+        <div class="fz-sheet-body">${body}</div>
+        <div class="fz-sheet-foot">
+          <button type="button" class="btn btn-secondary" data-close>${readOnly ? 'Fechar' : 'Cancelar'}</button>
+          ${readOnly ? '' : `<button type="submit" class="btn btn-primary" ${submitId ? `id="${submitId}"` : ''}>${submitLabel}</button>`}
+        </div>
+      </form>`;
+
+    document.body.appendChild(overlay);
+    document.body.classList.add('fz-sheet-open');
+
+    const form = overlay.querySelector('form');
+    const close = () => {
+      overlay.remove();
+      if (!document.querySelector('.fz-sheet-overlay')) document.body.classList.remove('fz-sheet-open');
+    };
+
+    overlay.querySelector('.fz-sheet-close').onclick = close;
+    overlay.querySelector('[data-close]').onclick = close;
+
+    form.onsubmit = async event => {
+      event.preventDefault();
+      if (readOnly) return;
+      const missing = [...form.querySelectorAll('[required]')].find(el => !String(el.value || '').trim());
+      if (missing) {
+        missing.focus();
+        App.showMessage('Preencha os campos obrigatórios (*).', 'warning');
+        return;
+      }
+      const submit = form.querySelector('[type=submit]');
+      if (submit) submit.disabled = true;
+      try {
+        const result = await onSubmit(form);
+        if (result !== false) {
+          close();
+          return;
+        }
+      } catch (error) {
+        console.error(error);
+        App.showMessage('Não foi possível salvar. Tente novamente.', 'error');
+      }
+      if (submit) submit.disabled = false;
+    };
+
+    setTimeout(() => {
+      const first = form.querySelector('.fz-sheet-body input:not([type=hidden]), .fz-sheet-body select, .fz-sheet-body textarea');
+      if (first && !first.value) first.focus();
+    }, 50);
+
+    return { overlay, form, close };
   },
+
 
   removeButton(store, id, editable) {
     return editable
@@ -1072,7 +1139,7 @@ const FiscalizacoesModule = {
 
     const pestRows = list => list.map(p => {
       const occ = occs.find(o => String(o.ID_Praga) === p.id);
-      return this.pestRow(fc, p, occ, editable);
+      return this.pestRow(fc, p, occ, editable, data);
     }).join('');
 
     return `
@@ -1106,24 +1173,47 @@ const FiscalizacoesModule = {
 
         ${extraOccs.map(o => this.pestRow(fc, {
           id: o.ID_Praga || '', nome: o.Nome_Praga, cientifico: o.Nome_Cientifico, extra: true
-        }, o, editable)).join('')}
+        }, o, editable, data)).join('')}
 
         ${!pests.doPrograma.length && !pests.outras.length && !extraOccs.length ? `
           <div class="empty-state">Nenhuma praga vinculada a esta cultura na aba Praga_Cultura.</div>` : ''}
 
         ${editable ? `
           <div class="fz-add-other">
-            <input list="fzAllPests" placeholder="Registrar outra praga nesta cultura..." id="fzOther_in_${this.esc(fc.id)}">
+            <input list="fzAllPests" placeholder="Outra praga nesta cultura..." id="fzOther_in_${this.esc(fc.id)}">
             <button type="button" class="btn btn-secondary fz-small" data-add-pest="${this.esc(fc.id)}">Adicionar</button>
           </div>` : ''}
       </div>`;
   },
 
-  pestRow(fc, pest, occ, editable) {
+  pestRow(fc, pest, occ, editable, data) {
     const result = occ?.Resultado_Avaliacao || 'NAO_AVALIADA';
     const positive = result === 'SUSPEITA' || result === 'DETECTADA';
     const key = `${fc.id}__${pest.id || occ?.id}`;
     const prog = pest.programa ? this.cat.programas.get(pest.programa) : null;
+
+    let detail = '';
+    if (positive && occ) {
+      const samples = (data?.samples || []).filter(s => s.ID_Ocorrencia_Local === occ.id).length;
+      const summary = [
+        occ.Nivel_Infestacao ? 'Nível ' + this.label(this.NIVEIS, occ.Nivel_Infestacao).toLowerCase() : '',
+        occ.Distribuicao_Ocorrencia ? this.label(this.DISTRIBUICAO, occ.Distribuicao_Ocorrencia) : '',
+        occ.Incidencia_Percentual !== '' && occ.Incidencia_Percentual != null ? occ.Incidencia_Percentual + '% incidência' : '',
+        occ.Latitude_Ocorrencia ? '📍 foco georreferenciado' : '',
+        samples ? `🧪 ${samples} amostra(s)` : ''
+      ].filter(Boolean).join(' • ');
+
+      detail = `
+        <div class="fz-occ-bar">
+          <span class="${occ.Sintomas_Observados ? '' : 'fz-missing'}">${occ.Sintomas_Observados
+            ? this.esc(summary || 'Detalhes registrados')
+            : '⚠️ Detalhes da ocorrência não preenchidos'}</span>
+          <div class="fz-occ-actions">
+            <button type="button" class="btn btn-secondary fz-small" data-occ-detail="${this.esc(occ.id)}">📝 ${editable ? 'Detalhar' : 'Ver detalhes'}</button>
+            ${editable ? `<button type="button" class="btn btn-secondary fz-small" data-occ-sample="${this.esc(occ.id)}">🧪 Coletar amostra</button>` : ''}
+          </div>
+        </div>`;
+    }
 
     return `
       <div class="fz-pest ${positive ? 'fz-pest-positive' : ''}">
@@ -1138,56 +1228,50 @@ const FiscalizacoesModule = {
             ${this.options(this.RESULTADOS, result, null)}
           </select>
         </div>
-        ${positive && occ ? this.occurrenceDetails(occ, editable) : ''}
+        ${detail}
       </div>`;
   },
 
-  occurrenceDetails(o, editable) {
+  async openOccurrenceSheet(occId) {
+    const o = await dbGet('ocorrenciasPragas', occId);
+    if (!o) return;
+    const editable = this.isEditable();
     const dis = editable ? '' : 'disabled';
-    const summary = [
-      o.Nivel_Infestacao ? 'Nível ' + this.label(this.NIVEIS, o.Nivel_Infestacao).toLowerCase() : '',
-      o.Distribuicao_Ocorrencia ? this.label(this.DISTRIBUICAO, o.Distribuicao_Ocorrencia) : '',
-      o.Incidencia_Percentual !== '' && o.Incidencia_Percentual != null ? o.Incidencia_Percentual + '%' : '',
-      o.Latitude_Ocorrencia ? '📍 ponto registrado' : ''
-    ].filter(Boolean).join(' • ');
 
-    return `
-      <details class="fz-occ" id="fzOcc_${this.esc(o.id)}" ${!o.Sintomas_Observados && editable ? 'open' : ''}>
-        <summary>Detalhes da ocorrência${summary ? ' — ' + this.esc(summary) : ''}</summary>
-        <form class="fz-occ-form" data-occ-form="${this.esc(o.id)}">
-          <div class="form-grid">
-            <div class="field field-wide">
-              <label>Sintomas / sinais observados *</label>
-              <textarea name="Sintomas_Observados" rows="2" maxlength="1000" ${dis}>${this.esc(o.Sintomas_Observados || '')}</textarea>
-            </div>
-            <div class="field"><label>Nível de infestação</label>
-              <select name="Nivel_Infestacao" ${dis}>${this.options(this.NIVEIS, o.Nivel_Infestacao)}</select></div>
-            <div class="field"><label>Distribuição</label>
-              <select name="Distribuicao_Ocorrencia" ${dis}>${this.options(this.DISTRIBUICAO, o.Distribuicao_Ocorrencia)}</select></div>
-            <div class="field"><label>Incidência estimada (%)</label>
-              <input name="Incidencia_Percentual" type="number" min="0" max="100" step="0.1" value="${this.esc(o.Incidencia_Percentual ?? '')}" ${dis}></div>
-            <div class="field"><label>Há quanto tempo ocorre</label>
-              <input name="Tempo_Ocorrencia" maxlength="100" value="${this.esc(o.Tempo_Ocorrencia || '')}" ${dis}></div>
-            <div class="field"><label>Método de controle utilizado</label>
-              <input name="Metodo_Controle" maxlength="200" value="${this.esc(o.Metodo_Controle || '')}" ${dis}></div>
-            <div class="field"><label>Coleta de amostra</label>
-              <select name="Coleta_Amostra" ${dis}>${this.options([['SIM', 'Sim'], ['NAO', 'Não']], o.Coleta_Amostra)}</select></div>
-            <div class="field"><label>Latitude do foco</label>
-              <input name="Latitude_Ocorrencia" id="lat_${this.esc(o.id)}" inputmode="decimal" value="${this.esc(o.Latitude_Ocorrencia ?? '')}" ${dis}></div>
-            <div class="field"><label>Longitude do foco</label>
-              <input name="Longitude_Ocorrencia" id="lng_${this.esc(o.id)}" inputmode="decimal" value="${this.esc(o.Longitude_Ocorrencia ?? '')}" ${dis}></div>
-            <div class="field field-wide"><label>Observações</label>
-              <input name="Observacoes" maxlength="500" value="${this.esc(o.Observacoes || '')}" ${dis}></div>
+    this.openSheet({
+      title: `${this.esc(o.Nome_Praga)} — ${this.label(this.RESULTADOS, o.Resultado_Avaliacao)}`,
+      subtitle: `${this.esc(o.Nome_Cultura_Local)}${o.Nome_Cientifico ? ' • <em>' + this.esc(o.Nome_Cientifico) + '</em>' : ''}`,
+      submitLabel: 'Salvar detalhes',
+      readOnly: !editable,
+      body: `
+        <div class="form-grid">
+          <div class="field field-wide">
+            <label>Sintomas / sinais observados *</label>
+            <textarea name="Sintomas_Observados" rows="3" maxlength="1000" required ${dis}>${this.esc(o.Sintomas_Observados || '')}</textarea>
           </div>
-          ${o.Legislacao ? `<p class="fz-legal">⚖️ ${this.esc(o.Legislacao)}</p>` : ''}
-          ${editable ? `
-            <div class="form-actions">
-              <button type="button" class="btn btn-secondary" onclick="FiscalizacoesModule.captureGPS('lat_${this.esc(o.id)}','lng_${this.esc(o.id)}','gps_${this.esc(o.id)}')">📍 Ponto do foco</button>
-              <small id="gps_${this.esc(o.id)}"></small>
-              <button type="submit" class="btn btn-primary">Salvar detalhes</button>
-            </div>` : ''}
-        </form>
-      </details>`;
+          <div class="field"><label>Nível de infestação</label>
+            <select name="Nivel_Infestacao" ${dis}>${this.options(this.NIVEIS, o.Nivel_Infestacao)}</select></div>
+          <div class="field"><label>Distribuição</label>
+            <select name="Distribuicao_Ocorrencia" ${dis}>${this.options(this.DISTRIBUICAO, o.Distribuicao_Ocorrencia)}</select></div>
+          <div class="field"><label>Incidência estimada (%)</label>
+            <input name="Incidencia_Percentual" type="number" min="0" max="100" step="0.1" value="${this.esc(o.Incidencia_Percentual ?? '')}" ${dis}></div>
+          <div class="field"><label>Há quanto tempo ocorre</label>
+            <input name="Tempo_Ocorrencia" maxlength="100" value="${this.esc(o.Tempo_Ocorrencia || '')}" ${dis}></div>
+          <div class="field field-wide"><label>Método de controle utilizado pelo produtor</label>
+            <input name="Metodo_Controle" maxlength="200" value="${this.esc(o.Metodo_Controle || '')}" ${dis}></div>
+          <div class="field"><label>Latitude do foco</label>
+            <input name="Latitude_Ocorrencia" id="occLat" inputmode="decimal" value="${this.esc(o.Latitude_Ocorrencia ?? '')}" ${dis}></div>
+          <div class="field"><label>Longitude do foco</label>
+            <input name="Longitude_Ocorrencia" id="occLng" inputmode="decimal" value="${this.esc(o.Longitude_Ocorrencia ?? '')}" ${dis}></div>
+          ${editable ? `<div class="field field-wide">
+            <button type="button" class="btn btn-secondary" onclick="FiscalizacoesModule.captureGPS('occLat','occLng','occGps')">📍 Capturar ponto do foco</button>
+            <small id="occGps"></small></div>` : ''}
+          <div class="field field-wide"><label>Observações</label>
+            <input name="Observacoes" maxlength="500" value="${this.esc(o.Observacoes || '')}" ${dis}></div>
+        </div>
+        ${o.Legislacao ? `<p class="fz-legal">⚖️ ${this.esc(o.Legislacao)}</p>` : ''}`,
+      onSubmit: form => this.saveOccurrenceDetails(form, occId)
+    });
   },
 
   dynamicField(fc, campo, dados, editable) {
@@ -1298,11 +1382,17 @@ const FiscalizacoesModule = {
         Legislacao: relInfo?.legislacao || pest?.legislacao || ''
       };
     }
+    const wasPositive = occ.Resultado_Avaliacao === 'SUSPEITA' || occ.Resultado_Avaliacao === 'DETECTADA';
     occ.Resultado_Avaliacao = result;
+    const isPositive = result === 'SUSPEITA' || result === 'DETECTADA';
 
-    await this.saveChild('ocorrenciasPragas', occ, [{ entity: 'fiscalizacaoCulturas', recordId: fc.id }]);
-    if (result === 'SUSPEITA' || result === 'DETECTADA' || el.dataset.occ === '') {
+    const saved = await this.saveChild('ocorrenciasPragas', occ, [{ entity: 'fiscalizacaoCulturas', recordId: fc.id }]);
+    if (isPositive || wasPositive || el.dataset.occ === '') {
       await this.renderWorkspace();
+    }
+    // Ao marcar suspeita/detectada, já abre a janela de detalhes
+    if (isPositive && !wasPositive && !saved.Sintomas_Observados) {
+      await this.openOccurrenceSheet(saved.id);
     }
   },
 
@@ -1336,12 +1426,12 @@ const FiscalizacoesModule = {
       Legislacao: pest?.legislacao || '',
       Resultado_Avaliacao: 'SUSPEITA'
     }, [{ entity: 'fiscalizacaoCulturas', recordId: fc.id }]);
-    App.showMessage('Praga registrada como suspeita. Complete os detalhes.', 'success');
     await this.renderWorkspace();
+    await this.openOccurrenceSheet(id);
   },
 
-  async saveOccurrenceDetails(form) {
-    const occ = await dbGet('ocorrenciasPragas', form.dataset.occForm);
+  async saveOccurrenceDetails(form, occId) {
+    const occ = await dbGet('ocorrenciasPragas', occId);
     if (!occ) return;
     const fd = new FormData(form);
     for (const [key, value] of fd.entries()) {
@@ -1367,39 +1457,9 @@ const FiscalizacoesModule = {
   /* ---------- AMOSTRAS ---------- */
 
   sectionSamples(data, editable) {
-    const occs = this.positiveOccs(data);
     return `
       <section class="subsection">
-        ${this.sectionHeader('🧪 Amostras', data.samples.length, 'fzSampleForm', editable)}
-        <form id="fzSampleForm" class="fz-inline-form" hidden>
-          <div class="form-grid">
-            <div class="field field-wide">
-              <label for="fzSmpOcc">Ocorrência / cultura *</label>
-              <select id="fzSmpOcc" required>
-                ${this.options(occs.map(o => ['occ:' + o.id, this.occLabel(o)]).concat(data.cults.map(c => ['fc:' + c.id, 'Sem ocorrência — ' + c.Nome_Cultura_Local])))}
-              </select>
-            </div>
-            <div class="field"><label for="fzSmpCod">Identificação da amostra *</label>
-              <input id="fzSmpCod" required maxlength="60"></div>
-            <div class="field"><label for="fzSmpLacre">Nº do lacre</label>
-              <input id="fzSmpLacre" maxlength="60"></div>
-            <div class="field"><label for="fzSmpMat">Material coletado *</label>
-              <select id="fzSmpMat" required>${this.options(this.MATERIAIS)}</select></div>
-            <div class="field"><label for="fzSmpQtd">Quantidade</label>
-              <div class="fz-row">
-                <input id="fzSmpQtd" type="number" min="0" step="any">
-                <select id="fzSmpUn" class="fz-select">${this.options(['UN', 'PLANTA', 'FRUTO', 'INSETO', 'KG', 'AMOSTRA'], 'UN', null)}</select>
-              </div></div>
-            <div class="field"><label for="fzSmpLab">Laboratório de destino</label>
-              <input id="fzSmpLab" maxlength="150"></div>
-            <div class="field"><label for="fzSmpObs">Observações</label>
-              <input id="fzSmpObs" maxlength="500"></div>
-          </div>
-          <div class="form-actions">
-            <button type="button" class="btn btn-secondary" onclick="FiscalizacoesModule.toggle('fzSampleForm')">Cancelar</button>
-            <button type="submit" class="btn btn-primary">Registrar amostra</button>
-          </div>
-        </form>
+        ${this.sectionHeader('🧪 Amostras', data.samples.length, 'FiscalizacoesModule.openSampleSheet()', '🧪 Coletar amostra', editable)}
         ${data.samples.length ? data.samples.map(s => `
           <div class="mini-card fz-item">
             <div>
@@ -1409,15 +1469,57 @@ const FiscalizacoesModule = {
                 s.Numero_Lacre ? 'Lacre ' + s.Numero_Lacre : '', s.Laboratorio_Destino].filter(Boolean).map(v => this.esc(v)).join(' • ')}</span>
             </div>
             ${this.removeButton('amostras', s.id, editable)}
-          </div>`).join('') : `<div class="empty-state">Nenhuma amostra coletada.</div>`}
+          </div>`).join('') + `
+          <button type="button" class="btn btn-secondary fz-small fz-mt" onclick="FiscalizacoesModule.printSampleTerm()">🖨️ Termo de Coleta de Amostra</button>`
+        : `<div class="empty-state">Nenhuma amostra coletada.</div>`}
       </section>`;
+  },
+
+  async openSampleSheet(preselectOccId = '') {
+    const data = await this.loadAll();
+    const occs = this.positiveOccs(data);
+    const base = String(this.current.Numero_Fiscalizacao || '').replace(/^TF-/, 'AM-');
+    const pre = preselectOccId ? 'occ:' + preselectOccId : (occs.length === 1 ? 'occ:' + occs[0].id : '');
+
+    this.openSheet({
+      title: '🧪 Coleta de amostra',
+      subtitle: `${this.esc(this.current.Nome_Propriedade_Local)} • ${this.esc(this.current.Numero_Fiscalizacao)}`,
+      submitLabel: 'Registrar amostra',
+      body: `
+        <div class="form-grid">
+          <div class="field field-wide">
+            <label for="fzSmpOcc">Ocorrência / cultura *</label>
+            <select id="fzSmpOcc" required>
+              ${this.options(occs.map(o => ['occ:' + o.id, this.occLabel(o)]).concat(data.cults.map(c => ['fc:' + c.id, 'Sem ocorrência — ' + c.Nome_Cultura_Local])), pre)}
+            </select>
+          </div>
+          <div class="field"><label for="fzSmpCod">Identificação da amostra *</label>
+            <input id="fzSmpCod" required maxlength="60" value="${this.esc(`${base}-${String(data.samples.length + 1).padStart(2, '0')}`)}"></div>
+          <div class="field"><label for="fzSmpLacre">Nº do lacre</label>
+            <input id="fzSmpLacre" maxlength="60"></div>
+          <div class="field"><label for="fzSmpMat">Material coletado *</label>
+            <select id="fzSmpMat" required>${this.options(this.MATERIAIS)}</select></div>
+          <div class="field"><label for="fzSmpQtd">Quantidade</label>
+            <div class="fz-row">
+              <input id="fzSmpQtd" type="number" min="0" step="any">
+              <select id="fzSmpUn" class="fz-select">${this.options(['UN', 'PLANTA', 'FRUTO', 'INSETO', 'KG', 'AMOSTRA'], 'UN', null)}</select>
+            </div></div>
+          <div class="field"><label for="fzSmpLab">Laboratório de destino</label>
+            <input id="fzSmpLab" maxlength="150"></div>
+          <div class="field"><label for="fzSmpAnalise">Análise solicitada</label>
+            <input id="fzSmpAnalise" maxlength="150" placeholder="Ex.: diagnose, identificação"></div>
+          <div class="field field-wide"><label for="fzSmpObs">Observações (acondicionamento, conservação)</label>
+            <input id="fzSmpObs" maxlength="500"></div>
+        </div>`,
+      onSubmit: () => this.saveSample()
+    });
   },
 
   async saveSample() {
     const ref = this.val('fzSmpOcc');
     if (!ref || !this.val('fzSmpCod') || !this.val('fzSmpMat')) {
       App.showMessage('Informe a ocorrência/cultura, a identificação e o material.', 'warning');
-      return;
+      return false;
     }
     const [kind, refId] = ref.split(':');
     const occ = kind === 'occ' ? await dbGet('ocorrenciasPragas', refId) : null;
@@ -1442,6 +1544,7 @@ const FiscalizacoesModule = {
       Numero_Lacre: this.val('fzSmpLacre'),
       Identificacao_Amostra: this.val('fzSmpCod'),
       Laboratorio_Destino: this.val('fzSmpLab'),
+      Analise_Solicitada: this.val('fzSmpAnalise'),
       Status_Amostra: 'COLETADA',
       Observacoes: this.val('fzSmpObs'),
       ID_Servidor_Coleta: user?.ID_Servidor || ''
@@ -1459,28 +1562,9 @@ const FiscalizacoesModule = {
   /* ---------- PROVIDÊNCIAS ---------- */
 
   sectionActions(data, editable) {
-    const occs = this.positiveOccs(data);
     return `
       <section class="subsection">
-        ${this.sectionHeader('📄 Providências', data.actions.length, 'fzActForm', editable)}
-        <form id="fzActForm" class="fz-inline-form" hidden>
-          <div class="form-grid">
-            <div class="field"><label for="fzActTipo">Tipo *</label>
-              <select id="fzActTipo" required>${this.options(this.PROVIDENCIAS)}</select></div>
-            <div class="field"><label for="fzActOcc">Ocorrência relacionada</label>
-              <select id="fzActOcc">${this.options(occs.map(o => [o.id, this.occLabel(o)]), '', 'Nenhuma')}</select></div>
-            <div class="field field-wide"><label for="fzActDesc">Descrição / medida determinada *</label>
-              <textarea id="fzActDesc" rows="3" required maxlength="1500"></textarea></div>
-            <div class="field"><label for="fzActPrazo">Prazo para cumprimento</label>
-              <input id="fzActPrazo" type="date"></div>
-            <div class="field"><label for="fzActNum">Nº do documento</label>
-              <input id="fzActNum" maxlength="60"></div>
-          </div>
-          <div class="form-actions">
-            <button type="button" class="btn btn-secondary" onclick="FiscalizacoesModule.toggle('fzActForm')">Cancelar</button>
-            <button type="submit" class="btn btn-primary">Registrar providência</button>
-          </div>
-        </form>
+        ${this.sectionHeader('📄 Providências', data.actions.length, 'FiscalizacoesModule.openActionSheet()', '+ Providência', editable)}
         ${data.actions.length ? data.actions.map(a => `
           <div class="mini-card fz-item">
             <div>
@@ -1493,10 +1577,34 @@ const FiscalizacoesModule = {
       </section>`;
   },
 
+  async openActionSheet() {
+    const data = await this.loadAll();
+    const occs = this.positiveOccs(data);
+    this.openSheet({
+      title: '📄 Nova providência',
+      subtitle: this.esc(this.current.Nome_Propriedade_Local),
+      submitLabel: 'Registrar providência',
+      body: `
+        <div class="form-grid">
+          <div class="field"><label for="fzActTipo">Tipo *</label>
+            <select id="fzActTipo" required>${this.options(this.PROVIDENCIAS)}</select></div>
+          <div class="field"><label for="fzActOcc">Ocorrência relacionada</label>
+            <select id="fzActOcc">${this.options(occs.map(o => [o.id, this.occLabel(o)]), occs.length === 1 ? occs[0].id : '', 'Nenhuma')}</select></div>
+          <div class="field field-wide"><label for="fzActDesc">Descrição / medida determinada *</label>
+            <textarea id="fzActDesc" rows="4" required maxlength="1500"></textarea></div>
+          <div class="field"><label for="fzActPrazo">Prazo para cumprimento</label>
+            <input id="fzActPrazo" type="date"></div>
+          <div class="field"><label for="fzActNum">Nº do documento</label>
+            <input id="fzActNum" maxlength="60"></div>
+        </div>`,
+      onSubmit: () => this.saveAction()
+    });
+  },
+
   async saveAction() {
     if (!this.val('fzActTipo') || !this.val('fzActDesc')) {
       App.showMessage('Informe tipo e descrição.', 'warning');
-      return;
+      return false;
     }
     const occ = this.val('fzActOcc') ? await dbGet('ocorrenciasPragas', this.val('fzActOcc')) : null;
     const id = createUUID();
@@ -1522,28 +1630,9 @@ const FiscalizacoesModule = {
   /* ---------- EVIDÊNCIAS FOTOGRÁFICAS ---------- */
 
   sectionPhotos(data, editable) {
-    const occs = this.positiveOccs(data);
     return `
       <section class="subsection">
-        ${this.sectionHeader('📷 Evidências fotográficas', data.photos.length, 'fzPhotoForm', editable)}
-        <form id="fzPhotoForm" class="fz-inline-form" hidden>
-          <div class="form-grid">
-            <div class="field field-wide"><label for="fzPhotoFile">Foto *</label>
-              <input id="fzPhotoFile" type="file" accept="image/*" capture="environment" required>
-              <small>A foto é reduzida no aparelho (máx. 1280 px).</small></div>
-            <div class="field"><label for="fzPhotoRef">Relacionada a</label>
-              <select id="fzPhotoRef">${this.options(occs.map(o => ['occ:' + o.id, this.occLabel(o)]).concat(data.cults.map(c => ['fc:' + c.id, 'Cultura — ' + c.Nome_Cultura_Local])), '', 'Fiscalização em geral')}</select></div>
-            <div class="field"><label for="fzPhotoDesc">Legenda</label>
-              <input id="fzPhotoDesc" maxlength="200"></div>
-            <div class="field field-wide">
-              <label class="fz-check-inline"><input type="checkbox" id="fzPhotoPdf" checked> Incluir no Termo</label>
-            </div>
-          </div>
-          <div class="form-actions">
-            <button type="button" class="btn btn-secondary" onclick="FiscalizacoesModule.toggle('fzPhotoForm')">Cancelar</button>
-            <button type="submit" class="btn btn-primary" id="fzPhotoBtn">Salvar foto</button>
-          </div>
-        </form>
+        ${this.sectionHeader('📷 Evidências fotográficas', data.photos.length, 'FiscalizacoesModule.openPhotoSheet()', '📷 Adicionar foto', editable)}
         ${data.photos.length ? `<div class="fz-gallery">${data.photos.map(p => `
           <figure class="fz-photo">
             ${p.Foto ? `<img src="${this.esc(p.Foto)}" alt="${this.esc(p.Legenda || 'Evidência')}">`
@@ -1554,6 +1643,41 @@ const FiscalizacoesModule = {
               ${this.removeButton('evidencias', p.id, editable)}</figcaption>
           </figure>`).join('')}</div>` : `<div class="empty-state">Nenhuma foto registrada.</div>`}
       </section>`;
+  },
+
+  async openPhotoSheet() {
+    const data = await this.loadAll();
+    const occs = this.positiveOccs(data);
+    const { form } = this.openSheet({
+      title: '📷 Evidência fotográfica',
+      subtitle: this.esc(this.current.Nome_Propriedade_Local),
+      submitLabel: 'Salvar foto',
+      submitId: 'fzPhotoBtn',
+      body: `
+        <div class="form-grid">
+          <div class="field field-wide"><label for="fzPhotoFile">Foto *</label>
+            <input id="fzPhotoFile" type="file" accept="image/*" capture="environment" required>
+            <img id="fzPhotoPreview" class="fz-photo-preview" hidden alt="">
+            <small>A foto é reduzida no aparelho (máx. 1280 px).</small></div>
+          <div class="field"><label for="fzPhotoRef">Relacionada a</label>
+            <select id="fzPhotoRef">${this.options(occs.map(o => ['occ:' + o.id, this.occLabel(o)]).concat(data.cults.map(c => ['fc:' + c.id, 'Cultura — ' + c.Nome_Cultura_Local])), '', 'Fiscalização em geral')}</select></div>
+          <div class="field"><label for="fzPhotoDesc">Legenda</label>
+            <input id="fzPhotoDesc" maxlength="200"></div>
+          <div class="field field-wide">
+            <label class="fz-check-inline"><input type="checkbox" id="fzPhotoPdf" checked> Incluir no Termo</label>
+          </div>
+        </div>`,
+      onSubmit: () => this.savePhoto()
+    });
+
+    const input = form.querySelector('#fzPhotoFile');
+    input.onchange = () => {
+      const file = input.files?.[0];
+      const img = form.querySelector('#fzPhotoPreview');
+      if (!file) return;
+      img.src = URL.createObjectURL(file);
+      img.hidden = false;
+    };
   },
 
   compressImage(file, maxSize = 1280, quality = 0.7) {
@@ -1581,11 +1705,10 @@ const FiscalizacoesModule = {
     const file = document.getElementById('fzPhotoFile')?.files?.[0];
     if (!file) {
       App.showMessage('Selecione ou tire uma foto.', 'warning');
-      return;
+      return false;
     }
     const btn = document.getElementById('fzPhotoBtn');
-    btn.disabled = true;
-    btn.textContent = 'Processando...';
+    if (btn) btn.textContent = 'Processando...';
 
     try {
       const [dataUrl, coords] = await Promise.all([this.compressImage(file), this.getPositionQuick()]);
@@ -1619,8 +1742,8 @@ const FiscalizacoesModule = {
     } catch (error) {
       console.error(error);
       App.showMessage('Não foi possível processar a foto.', 'error');
-      btn.disabled = false;
-      btn.textContent = 'Salvar foto';
+      if (btn) btn.textContent = 'Salvar foto';
+      return false;
     }
   },
 
@@ -1640,6 +1763,74 @@ const FiscalizacoesModule = {
       .sort((a, b) => Number(b.Versao_Documento || 0) - Number(a.Versao_Documento || 0))[0] || null;
   },
 
+  /* Assinatura do servidor: usa a imagem cadastrada no perfil (Auth) */
+  fiscalSignature(f) {
+    const user = Auth.getUser();
+    const same = user && (
+      (f.ID_Servidor && user.ID_Servidor === f.ID_Servidor) ||
+      (!f.ID_Servidor && user.Nome_Completo === f.Nome_Servidor)
+    );
+    return same && user.Assinatura ? user.Assinatura : '';
+  },
+
+  respSignKey() {
+    return 'assinatura_resp_' + this.current.id;
+  },
+
+  witnessKey() {
+    return 'testemunhas_' + this.current.id;
+  },
+
+  /* Guarda os textos digitados na conclusão antes de redesenhar a tela */
+  async keepConclusionDraft() {
+    if (!document.getElementById('fzSituacao')) return;
+    this.current = await saveLocalRecord('fiscalizacoes', {
+      ...this.current,
+      Situacao_Fitossanitaria: this.val('fzSituacao'),
+      Descricao_Acao: this.val('fzDescricao'),
+      Enquadramento_Legal: this.val('fzEnquadramento'),
+      Observacoes: this.val('fzObs')
+    }, { operation: 'UPDATE' });
+  },
+
+  async markResponsibleAbsent() {
+    if (!confirm('Registrar que o responsável está ausente? Serão solicitadas duas testemunhas.')) return;
+    await this.keepConclusionDraft();
+    await setMeta(this.respSignKey(), { status: 'AUSENTE', at: new Date().toISOString() });
+    await this.renderWorkspace();
+  },
+
+  /* Gravações em fila, para um campo não sobrescrever o outro */
+  saveWitnessField(el) {
+    this._witQueue = (this._witQueue || Promise.resolve()).then(async () => {
+      const list = (await getMeta(this.witnessKey())) || [];
+      const i = Number(el.dataset.wit);
+      list[i] = { ...(list[i] || {}), [el.dataset.witField]: el.value.trim() };
+      await setMeta(this.witnessKey(), list);
+      this.pendingWitnesses = list;
+    });
+    return this._witQueue;
+  },
+
+  async collectWitnessSignature(i) {
+    const list = (await getMeta(this.witnessKey())) || [];
+    const w = list[i] || {};
+    if (!w.nome) {
+      App.showMessage('Informe o nome da testemunha antes da assinatura.', 'warning');
+      return;
+    }
+    const result = await SignaturePad.capture({
+      title: `Assinatura — testemunha ${i + 1}`,
+      name: w.nome,
+      detail: [w.doc ? 'CPF/RG ' + w.doc : '', 'Termo ' + this.current.Numero_Fiscalizacao].filter(Boolean).join(' • ')
+    });
+    if (!result || !result.image) return;
+    list[i] = { ...w, image: result.image, at: new Date().toISOString() };
+    await setMeta(this.witnessKey(), list);
+    await this.keepConclusionDraft();
+    await this.renderWorkspace();
+  },
+
   sectionConclusion(f, data, editable, doc) {
     if (!editable) {
       return `
@@ -1647,42 +1838,89 @@ const FiscalizacoesModule = {
           <div class="fz-section-header"><h4>✅ Conclusão</h4></div>
           <div class="mini-card">
             <strong>${this.esc(this.label(this.SITUACOES, f.Situacao_Fitossanitaria))}</strong>
-            <span>${this.esc(f.Observacoes || 'Sem observações.')}</span>
             <span>${this.status(f) === 'CANCELADA'
               ? 'Cancelada: ' + this.esc(f.Motivo_Cancelamento || '')
-              : `Finalizada em ${this.formatDateTime(f.Data_Hora_Final || f.Data_Finalizacao)}${doc ? ` • Termo nº ${this.esc(doc.Numero_Documento)} (versão ${this.esc(doc.Versao_Documento)})` : ''}`}</span>
+              : `Finalizada em ${this.formatDateTime(f.Data_Hora_Final || f.Data_Finalizacao)}`}</span>
+            ${doc ? `<span>Termo nº <b>${this.esc(doc.Numero_Documento)}</b>${doc.Numero_Provisorio === 'SIM' ? ' (provisório — o definitivo sai na sincronização)' : ''} • versão ${this.esc(doc.Versao_Documento)}</span>
+              ${doc.PDF_URL ? `<a class="btn btn-secondary fz-small fz-mt" href="${this.esc(doc.PDF_URL)}" target="_blank" rel="noopener">📄 Abrir PDF oficial no Drive</a>` : '<span class="fz-muted">O PDF oficial será gerado no Drive na próxima sincronização.</span>'}` : ''}
           </div>
         </section>`;
     }
 
     const suggested = f.Situacao_Fitossanitaria || this.suggestSituation(data);
-    const responsible = f.Responsavel_Presente || '';
+    const fiscalImg = this.fiscalSignature(f);
+    const resp = this.pendingResp;
+    const needWitness = resp && (resp.status === 'RECUSADO' || resp.status === 'AUSENTE');
+    const wits = this.pendingWitnesses || [];
 
     return `
       <section class="subsection">
-        <div class="fz-section-header"><h4>✅ Conclusão e assinaturas</h4></div>
+        <div class="fz-section-header"><h4>✅ Conclusão e Termo de Fiscalização</h4></div>
         <form id="fzConclForm" class="fz-inline-form">
           <div class="form-grid">
             <div class="field field-wide"><label for="fzSituacao">Situação fitossanitária *</label>
               <select id="fzSituacao" required>${this.options(this.SITUACOES, suggested)}</select>
               <small>Sugerida a partir dos resultados das pragas avaliadas.</small></div>
-            <div class="field field-wide"><label for="fzObs">Relato da fiscalização / observações</label>
-              <textarea id="fzObs" rows="4" maxlength="4000">${this.esc(f.Observacoes || '')}</textarea></div>
 
-            <div class="field">
-              <label>Assinatura do fiscal — ${this.esc(f.Nome_Servidor || '')}</label>
-              <canvas class="fz-sign" id="fzSignFiscal" width="600" height="180"></canvas>
-              <button type="button" class="fz-link" onclick="FiscalizacoesModule.clearSign('fzSignFiscal')">Limpar</button>
-            </div>
-            <div class="field">
-              <label>Assinatura do responsável — ${this.esc(responsible)}</label>
-              <canvas class="fz-sign" id="fzSignResp" width="600" height="180"></canvas>
-              <div class="fz-row">
-                <button type="button" class="fz-link" onclick="FiscalizacoesModule.clearSign('fzSignResp')">Limpar</button>
-                <label class="fz-check-inline"><input type="checkbox" id="fzRecusa"> Recusou-se a assinar</label>
+            <div class="field field-wide">
+              <div class="fz-label-row">
+                <label for="fzDescricao">2 – Descrição da ação (o que foi constatado) *</label>
+                <button type="button" class="fz-link" id="fzGenDesc">↻ Gerar a partir dos registros</button>
               </div>
+              <textarea id="fzDescricao" rows="7" maxlength="6000">${this.esc(f.Descricao_Acao || this.generateDescription(data))}</textarea>
+              <small>Texto que sai no termo após “Em __/__/____ às __:__ ao realizar fiscalização no(a) … constatei:”. Pode editar à vontade.</small>
+            </div>
+
+            <div class="field field-wide">
+              <div class="fz-label-row">
+                <label for="fzEnquadramento">3 – Enquadramento legal</label>
+                <button type="button" class="fz-link" id="fzGenLegal">↻ Sugerir pela legislação cadastrada</button>
+              </div>
+              <textarea id="fzEnquadramento" rows="3" maxlength="3000">${this.esc(f.Enquadramento_Legal ?? this.generateLegal(data))}</textarea>
+            </div>
+
+            <div class="field field-wide"><label for="fzObs">Observações internas (não saem no termo)</label>
+              <textarea id="fzObs" rows="2" maxlength="2000">${this.esc(f.Observacoes || '')}</textarea></div>
+          </div>
+
+          <div class="fz-signs">
+            <div class="fz-sign-card">
+              <small>Servidor da ADAF</small>
+              <strong>${this.esc(f.Nome_Servidor || '')}</strong>
+              ${fiscalImg
+                ? `<img src="${this.esc(fiscalImg)}" alt="Assinatura do fiscal"><span class="fz-sign-ok">✓ Assinatura aplicada automaticamente</span>`
+                : `<span class="fz-sign-ok">✓ Assinatura eletrônica (nome, matrícula, data e hora)</span>
+                   <button type="button" class="fz-link" onclick="Auth.showIdentification().then(()=>FiscalizacoesModule.renderWorkspace())">Cadastrar imagem da minha assinatura</button>`}
+            </div>
+
+            <div class="fz-sign-card ${resp ? '' : 'fz-sign-pending'}">
+              <small>Recebimento da 2ª via — ${this.esc(this.label(this.VINCULOS, f.Vinculo_Responsavel))}</small>
+              <strong>${this.esc(f.Responsavel_Presente || '')}</strong>
+              ${resp?.status === 'ASSINADO' ? `<img src="${this.esc(resp.image)}" alt="Assinatura do responsável"><span class="fz-sign-ok">✓ Assinatura coletada</span>` : ''}
+              ${resp?.status === 'RECUSADO' ? `<span class="fz-sign-refused">Recusou-se a assinar</span>` : ''}
+              ${resp?.status === 'AUSENTE' ? `<span class="fz-sign-refused">Responsável ausente</span>` : ''}
+              <button type="button" class="btn ${resp ? 'btn-secondary' : 'btn-primary'} fz-sign-btn" id="fzRespSignBtn">✍️ ${resp ? 'Refazer assinatura' : 'Coletar assinatura do responsável'}</button>
+              ${resp?.status !== 'AUSENTE' ? `<button type="button" class="fz-link" id="fzRespAbsent">Responsável ausente</button>` : ''}
             </div>
           </div>
+
+          ${needWitness ? `
+            <div class="fz-witnesses">
+              <strong>4 – Testemunhas</strong>
+              <small>Necessárias porque o responsável ${resp.status === 'AUSENTE' ? 'está ausente' : 'se recusou a assinar'}.</small>
+              ${[0, 1].map(i => `
+                <div class="fz-witness">
+                  <div class="form-grid">
+                    <div class="field"><label>Testemunha ${i + 1} — nome</label>
+                      <input data-wit="${i}" data-wit-field="nome" maxlength="150" value="${this.esc(wits[i]?.nome || '')}"></div>
+                    <div class="field"><label>CPF / RG</label>
+                      <input data-wit="${i}" data-wit-field="doc" maxlength="30" value="${this.esc(wits[i]?.doc || '')}"></div>
+                  </div>
+                  ${wits[i]?.image ? `<img src="${this.esc(wits[i].image)}" alt="Assinatura da testemunha">` : ''}
+                  <button type="button" class="btn btn-secondary" data-wit-sign="${i}">✍️ ${wits[i]?.image ? 'Refazer assinatura' : 'Coletar assinatura'} da testemunha ${i + 1}</button>
+                </div>`).join('')}
+            </div>` : ''}
+
           <div class="form-actions">
             <button type="button" class="btn btn-secondary fz-danger" onclick="FiscalizacoesModule.cancelInspection()">Cancelar fiscalização</button>
             <button type="button" class="btn btn-secondary" onclick="FiscalizacoesModule.saveConclusion(false)">Salvar rascunho</button>
@@ -1692,50 +1930,103 @@ const FiscalizacoesModule = {
       </section>`;
   },
 
-  initSignaturePad(id) {
-    const canvas = document.getElementById(id);
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    ctx.lineWidth = 3;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#111';
-    canvas.dataset.signed = '';
-    let drawing = false;
+  /* ---------- Textos automáticos do termo ---------- */
 
-    const pos = e => {
-      const r = canvas.getBoundingClientRect();
-      return [(e.clientX - r.left) * canvas.width / r.width, (e.clientY - r.top) * canvas.height / r.height];
-    };
-    canvas.onpointerdown = e => {
-      drawing = true;
-      canvas.setPointerCapture(e.pointerId);
-      ctx.beginPath();
-      ctx.moveTo(...pos(e));
-    };
-    canvas.onpointermove = e => {
-      if (!drawing) return;
-      ctx.lineTo(...pos(e));
-      ctx.stroke();
-      canvas.dataset.signed = '1';
-    };
-    canvas.onpointerup = canvas.onpointercancel = () => { drawing = false; };
+  fmtNum(v) {
+    return v === '' || v == null ? '' : String(v).replace('.', ',');
   },
 
-  clearSign(id) {
-    const canvas = document.getElementById(id);
-    if (!canvas) return;
-    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-    canvas.dataset.signed = '';
+  joinPt(list) {
+    const items = list.filter(Boolean);
+    if (items.length <= 1) return items.join('');
+    return items.slice(0, -1).join(', ') + ' e ' + items[items.length - 1];
   },
 
-  signatureData(id) {
-    const canvas = document.getElementById(id);
-    return canvas && canvas.dataset.signed ? canvas.toDataURL('image/png') : '';
+  generateDescription(data) {
+    const f = this.current;
+    const parts = [];
+    const programs = this.selectedPrograms().map(id => this.cat.programas.get(id)).filter(Boolean);
+
+    parts.push(`${this.label(this.TIPOS_ACAO, f.Tipo_Acao)}${programs.length ? ' no âmbito do(s) programa(s) ' + this.joinPt(programs.map(p => this.programLabel(p))) : ''}${f.Finalidade ? ', com a finalidade de ' + f.Finalidade.replace(/\.$/, '') : ''}.`);
+
+    if (data.cults.length) {
+      parts.push('Foram inspecionadas as culturas de ' + this.joinPt(data.cults.map(c => {
+        const extra = [
+          c.Area_Fiscalizada_ha !== '' && c.Area_Fiscalizada_ha != null ? this.fmtNum(c.Area_Fiscalizada_ha) + ' ha fiscalizados' : '',
+          c.Quantidade_Plantas_Avaliadas ? c.Quantidade_Plantas_Avaliadas + ' plantas avaliadas' : ''
+        ].filter(Boolean).join(', ');
+        return c.Nome_Cultura_Local + (extra ? ` (${extra})` : '');
+      })) + '.');
+    }
+
+    const evaluated = data.occs.filter(o => o.Resultado_Avaliacao && o.Resultado_Avaliacao !== 'NAO_AVALIADA');
+    const positives = evaluated.filter(o => o.Resultado_Avaliacao === 'DETECTADA' || o.Resultado_Avaliacao === 'SUSPEITA');
+    const negatives = evaluated.filter(o => o.Resultado_Avaliacao === 'NAO_DETECTADA');
+
+    positives.forEach(o => {
+      const det = [
+        o.Nivel_Infestacao ? 'nível de infestação ' + this.label(this.NIVEIS, o.Nivel_Infestacao).toLowerCase() : '',
+        o.Incidencia_Percentual !== '' && o.Incidencia_Percentual != null ? 'incidência estimada de ' + this.fmtNum(o.Incidencia_Percentual) + '%' : '',
+        o.Distribuicao_Ocorrencia ? 'distribuição: ' + this.label(this.DISTRIBUICAO, o.Distribuicao_Ocorrencia).toLowerCase() : ''
+      ].filter(Boolean).join(', ');
+      parts.push(`${o.Resultado_Avaliacao === 'DETECTADA' ? 'Constatou-se a ocorrência' : 'Constatou-se suspeita de ocorrência'} de ${o.Nome_Praga}${o.Nome_Cientifico ? ' (' + o.Nome_Cientifico + ')' : ''} na cultura de ${o.Nome_Cultura_Local}${det ? ', com ' + det : ''}${o.Sintomas_Observados ? '. Sintomas observados: ' + o.Sintomas_Observados.replace(/\.$/, '') : ''}.`);
+    });
+
+    if (negatives.length) {
+      parts.push('Não foram detectados sinais ou sintomas de ' + this.joinPt(negatives.map(o => `${o.Nome_Praga} (${o.Nome_Cultura_Local})`)) + '.');
+    }
+
+    if (data.samples.length) {
+      parts.push(`Foram coletadas ${data.samples.length} amostra(s) para análise laboratorial: ` + this.joinPt(data.samples.map(s =>
+        `${s.Identificacao_Amostra}${s.Numero_Lacre ? ' (lacre ' + s.Numero_Lacre + ')' : ''} — ${s.Tipo_Material.toLowerCase()}${s.Nome_Cultura_Local ? ' de ' + s.Nome_Cultura_Local.toLowerCase() : ''}`)) + '.');
+    }
+
+    data.actions.forEach(a => {
+      parts.push(`Providência: ${this.label(this.PROVIDENCIAS, a.Tipo_Providencia)}${a.Numero_Documento ? ' nº ' + a.Numero_Documento : ''} — ${a.Descricao.replace(/\.$/, '')}${a.Prazo ? ', com prazo até ' + this.formatDate(a.Prazo) : ''}.`);
+    });
+
+    if (!positives.length && evaluated.length) {
+      parts.push('Situação fitossanitária: sem ocorrência das pragas avaliadas no momento da fiscalização.');
+    }
+
+    return parts.join(' ');
   },
+
+  generateLegal(data) {
+    const laws = [];
+    const add = text => {
+      const t = this.clean(text);
+      if (t && !laws.some(l => l.toLowerCase() === t.toLowerCase())) laws.push(t);
+    };
+    this.selectedPrograms().forEach(id => add(this.cat.programas.get(id)?.legislacao));
+    data.occs
+      .filter(o => o.Resultado_Avaliacao && o.Resultado_Avaliacao !== 'NAO_AVALIADA')
+      .forEach(o => add(o.Legislacao || this.cat.pragas.get(String(o.ID_Praga))?.legislacao));
+    return laws.join(';\n');
+  },
+
+  async collectResponsibleSignature() {
+    const f = this.current;
+    const result = await SignaturePad.capture({
+      title: `Assinatura — ${this.label(this.VINCULOS, f.Vinculo_Responsavel)}`,
+      name: f.Responsavel_Presente || '',
+      detail: [f.CPF_Responsavel ? 'CPF ' + f.CPF_Responsavel : '', `Termo ${f.Numero_Fiscalizacao}`].filter(Boolean).join(' • '),
+      allowRefusal: true
+    });
+    if (!result) return;
+    await this.keepConclusionDraft();
+    await setMeta(this.respSignKey(), { ...result, at: new Date().toISOString() });
+    App.showMessage(result.status === 'ASSINADO' ? 'Assinatura coletada.' : 'Recusa registrada.', 'success');
+    await this.renderWorkspace();
+  },
+
+
+
 
   async saveConclusion(finish) {
     const situacao = this.val('fzSituacao');
     const data = await this.loadAll();
+    const resp = await getMeta(this.respSignKey());
 
     if (finish) {
       const problems = [];
@@ -1762,14 +2053,19 @@ const FiscalizacoesModule = {
       });
 
       this.positiveOccs(data).filter(o => !o.Sintomas_Observados)
-        .forEach(o => problems.push(`${this.occLabel(o)}: sintomas não descritos`));
+        .forEach(o => problems.push(`${this.occLabel(o)}: detalhes da ocorrência não preenchidos`));
 
       const hasPositive = this.positiveOccs(data).length > 0;
       if (situacao === 'SEM_OCORRENCIA' && hasPositive) problems.push('há pragas suspeitas/detectadas, mas a situação indica “sem ocorrência”');
       if (situacao !== 'SEM_OCORRENCIA' && !hasPositive) problems.push('a situação indica praga, mas nenhuma foi marcada como suspeita/detectada');
 
-      if (!this.signatureData('fzSignFiscal')) problems.push('assinatura do fiscal não coletada');
-      if (!this.signatureData('fzSignResp') && !document.getElementById('fzRecusa').checked) problems.push('assinatura do responsável não coletada');
+      if (!resp) problems.push('assinatura do responsável não coletada');
+      if (!this.val('fzDescricao')) problems.push('descrição da ação (item 2 do termo) em branco');
+      if (resp && (resp.status === 'RECUSADO' || resp.status === 'AUSENTE')) {
+        const wits = ((await getMeta(this.witnessKey())) || []).filter(w => w && w.nome && w.image);
+        if (wits.length < 2) problems.push(`responsável ${resp.status === 'AUSENTE' ? 'ausente' : 'recusou-se a assinar'}: são necessárias 2 testemunhas com assinatura (há ${wits.length})`);
+      }
+      if (!(await NumberPool.available())) problems.push('não há número de termo reservado neste aparelho: será usado número provisório até a sincronização');
 
       if (problems.length && !confirm('Atenção:\n- ' + problems.join('\n- ') + '\n\nFinalizar mesmo assim?')) return;
       if (!problems.length && !confirm('Finalizar a fiscalização e emitir o Termo de Fiscalização?')) return;
@@ -1779,6 +2075,8 @@ const FiscalizacoesModule = {
     const record = {
       ...this.current,
       Situacao_Fitossanitaria: situacao,
+      Descricao_Acao: this.val('fzDescricao'),
+      Enquadramento_Legal: this.val('fzEnquadramento'),
       Observacoes: this.val('fzObs'),
       Data_Atualizacao: now
     };
@@ -1788,17 +2086,15 @@ const FiscalizacoesModule = {
       record.Data_Finalizacao = now;
     }
 
-    const signFiscal = finish ? this.signatureData('fzSignFiscal') : '';
-    const signResp = finish ? this.signatureData('fzSignResp') : '';
-    const recusa = finish ? document.getElementById('fzRecusa').checked : false;
-
     this.current = await saveLocalRecord('fiscalizacoes', record, {
       operation: 'UPDATE',
       dependsOn: [{ entity: 'propriedades', recordId: record.ID_Propriedade_Local }]
     });
 
     if (finish) {
-      await this.emitDocument(data, { signFiscal, signResp, recusa });
+      await this.emitDocument(data, resp, (await getMeta(this.witnessKey())) || []);
+      await setMeta(this.respSignKey(), null);
+      await setMeta(this.witnessKey(), null);
     }
 
     await App.updateSyncStatus();
@@ -1811,9 +2107,10 @@ const FiscalizacoesModule = {
     if (finish) this.printTerm();
   },
 
-  async emitDocument(data, { signFiscal, signResp, recusa }) {
+  async emitDocument(data, resp, witnesses = []) {
     const f = this.current;
     const user = Auth.getUser();
+    const now = () => new Date().toISOString();
     const previous = (await this.getChildren('documentos')).filter(d => d.Tipo_Documento === 'TERMO_FISCALIZACAO');
     const version = previous.reduce((max, d) => Math.max(max, Number(d.Versao_Documento || 0)), 0) + 1;
 
@@ -1831,16 +2128,26 @@ const FiscalizacoesModule = {
       providencias: data.actions.map(a => [a.Tipo_Providencia, a.Descricao])
     });
 
+    /* Numeração estadual: N° sequencial - Ano - Unidade */
+    const unidade = this.unitCode(this.property?.Municipio || f.Municipio);
+    const reserved = await NumberPool.take();
+    const ano = reserved ? reserved.ano : new Date().getFullYear();
+    const seq = reserved ? String(reserved.seq).padStart(4, '0') : 'PROV';
+
     const docId = createUUID();
     const doc = await this.saveChild('documentos', {
       id: docId,
       ID_Documento: docId,
       Tipo_Documento: 'TERMO_FISCALIZACAO',
       ID_Propriedade: f.ID_Propriedade,
-      Numero_Documento: f.Numero_Fiscalizacao + (version > 1 ? '-V' + version : ''),
+      Numero_Sequencial: reserved ? reserved.seq : '',
+      Ano_Documento: ano,
+      Unidade_Documento: unidade,
+      Numero_Provisorio: reserved ? 'NAO' : 'SIM',
+      Numero_Documento: reserved ? `${seq}-${ano}-${unidade}` : `PROV-${f.Numero_Fiscalizacao}`,
       Versao_Documento: version,
       Data_Hora_Emissao: now(),
-      ID_Servidor_Emissor: user?.ID_Servidor || f.ID_Servidor || '',
+      ID_Servidor_Emissor: f.ID_Servidor || user?.ID_Servidor || '',
       Nome_Servidor_Emissor: f.Nome_Servidor || user?.Nome_Completo || '',
       Status_Documento: 'EMITIDO',
       PDF_URL: '',
@@ -1848,35 +2155,59 @@ const FiscalizacoesModule = {
       Observacoes: ''
     });
 
-    function now() { return new Date().toISOString(); }
-
     const coords = await this.getPositionQuick();
-    const signature = async (tipo, nome, cpf, qualificacao, img, status, servidor) => {
+    const signature = async (fields) => {
       const id = createUUID();
       await this.saveChild('assinaturas', {
         id,
         ID_Assinatura: id,
         ID_Documento: doc.ID_Documento,
         ID_Documento_Local: doc.id,
-        Tipo_Assinante: tipo,
-        ID_Servidor: servidor || '',
-        Nome_Assinante: nome,
-        CPF_Assinante: cpf || '',
-        Qualificacao_Assinante: qualificacao,
-        Assinatura: img,
         Assinatura_URL: '',
         Data_Hora_Assinatura: now(),
         Latitude_Assinatura: coords ? Number(coords.latitude.toFixed(6)) : '',
         Longitude_Assinatura: coords ? Number(coords.longitude.toFixed(6)) : '',
-        Status_Assinatura: status
+        ...fields
       }, [{ entity: 'documentos', recordId: doc.id }]);
     };
 
-    await signature('SERVIDOR', f.Nome_Servidor || user?.Nome_Completo || '', '',
-      user?.Cargo_Funcao || 'Fiscal', signFiscal, signFiscal ? 'ASSINADO' : 'PENDENTE', f.ID_Servidor);
-    await signature(f.Vinculo_Responsavel || 'RESPONSAVEL', f.Responsavel_Presente || '', f.CPF_Responsavel,
-      this.label(this.VINCULOS, f.Vinculo_Responsavel), signResp,
-      signResp ? 'ASSINADO' : (recusa ? 'RECUSADO' : 'PENDENTE'), '');
+    const fiscalImg = this.fiscalSignature(f);
+    await signature({
+      Tipo_Assinante: 'SERVIDOR',
+      ID_Servidor: f.ID_Servidor || '',
+      Nome_Assinante: f.Nome_Servidor || user?.Nome_Completo || '',
+      CPF_Assinante: '',
+      Qualificacao_Assinante: [user?.Cargo_Funcao || 'Fiscal', f.Matricula_Servidor ? 'mat. ' + f.Matricula_Servidor : ''].filter(Boolean).join(' — '),
+      Assinatura: fiscalImg,
+      Status_Assinatura: fiscalImg ? 'ASSINADO' : 'ASSINADO_ELETRONICAMENTE'
+    });
+
+    await signature({
+      Tipo_Assinante: f.Vinculo_Responsavel || 'RESPONSAVEL',
+      ID_Servidor: '',
+      Nome_Assinante: f.Responsavel_Presente || '',
+      CPF_Assinante: f.CPF_Responsavel || '',
+      Qualificacao_Assinante: this.label(this.VINCULOS, f.Vinculo_Responsavel),
+      Assinatura: resp?.status === 'ASSINADO' ? resp.image : '',
+      Status_Assinatura: resp?.status || 'PENDENTE'
+    });
+
+    for (const [ordem, w] of witnesses.filter(x => x && x.nome).entries()) {
+      await signature({
+        Ordem_Assinatura: ordem + 1,
+        Tipo_Assinante: 'TESTEMUNHA',
+        ID_Servidor: '',
+        Nome_Assinante: w.nome,
+        CPF_Assinante: w.doc || '',
+        Qualificacao_Assinante: 'Testemunha',
+        Assinatura: w.image || '',
+        Status_Assinatura: w.image ? 'ASSINADO' : 'PENDENTE'
+      });
+    }
+
+    /* HTML do termo: o Apps Script converte em PDF no Drive */
+    const html = await this.buildTermHTML(doc, false);
+    await this.saveChild('documentos', { ...(await dbGet('documentos', doc.id)), Termo_HTML: html });
   },
 
   async cancelInspection() {
@@ -1914,35 +2245,59 @@ const FiscalizacoesModule = {
   ======================================================= */
 
   bindWorkspace(data) {
-    const bindForm = (id, fn) => {
-      const form = document.getElementById(id);
-      if (!form) return;
-      form.onsubmit = async event => {
-        event.preventDefault();
-        const submit = form.querySelector('[type=submit]');
-        if (submit) submit.disabled = true;
-        try {
-          await fn(form);
-        } catch (error) {
-          console.error(error);
-          App.showMessage('Não foi possível salvar. Tente novamente.', 'error');
-        }
-        if (submit && document.body.contains(submit)) submit.disabled = false;
-      };
-    };
+    document.querySelectorAll('[data-occ-detail]').forEach(btn => {
+      btn.onclick = () => this.openOccurrenceSheet(btn.dataset.occDetail);
+    });
 
-    bindForm('fzSampleForm', () => this.saveSample());
-    bindForm('fzActForm', () => this.saveAction());
-    bindForm('fzPhotoForm', () => this.savePhoto());
-    bindForm('fzConclForm', () => this.saveConclusion(true));
-    document.querySelectorAll('[data-occ-form]').forEach(form => {
-      form.onsubmit = async e => {
-        e.preventDefault();
-        await this.saveOccurrenceDetails(form);
+    const concl = document.getElementById('fzConclForm');
+    if (concl) {
+      concl.onsubmit = async event => {
+        event.preventDefault();
+        await this.saveConclusion(true);
+      };
+    }
+
+    if (!this.isEditable()) return;
+
+    document.querySelectorAll('[data-occ-sample]').forEach(btn => {
+      btn.onclick = () => this.openSampleSheet(btn.dataset.occSample);
+    });
+
+    const signBtn = document.getElementById('fzRespSignBtn');
+    if (signBtn) signBtn.onclick = () => this.collectResponsibleSignature();
+
+    const absent = document.getElementById('fzRespAbsent');
+    if (absent) absent.onclick = () => this.markResponsibleAbsent();
+
+    document.querySelectorAll('[data-wit-field]').forEach(el => {
+      el.onchange = () => this.saveWitnessField(el);
+    });
+    document.querySelectorAll('[data-wit-sign]').forEach(btn => {
+      btn.onclick = async () => {
+        for (const el of document.querySelectorAll('[data-wit-field]')) {
+          await this.saveWitnessField(el);
+        }
+        await this.collectWitnessSignature(Number(btn.dataset.witSign));
       };
     });
 
-    if (!this.isEditable()) return;
+    const genDesc = document.getElementById('fzGenDesc');
+    if (genDesc) genDesc.onclick = async () => {
+      const box = document.getElementById('fzDescricao');
+      if (box.value.trim() && !confirm('Substituir o texto atual pelo texto gerado a partir dos registros?')) return;
+      box.value = this.generateDescription(await this.loadAll());
+    };
+    const genLegal = document.getElementById('fzGenLegal');
+    if (genLegal) genLegal.onclick = async () => {
+      const box = document.getElementById('fzEnquadramento');
+      const text = this.generateLegal(await this.loadAll());
+      if (!text) {
+        App.showMessage('Não há legislação cadastrada para os programas/pragas desta fiscalização.', 'warning');
+        return;
+      }
+      if (box.value.trim() && !confirm('Substituir o texto atual pela legislação cadastrada?')) return;
+      box.value = text;
+    };
 
     document.querySelectorAll('.fz-result').forEach(el => {
       el.onchange = async () => {
@@ -1974,15 +2329,6 @@ const FiscalizacoesModule = {
     }
     document.getElementById('fzAllPests').innerHTML = [...this.cat.pragas.values()]
       .map(p => `<option value="${this.esc(p.nome)}">${this.esc(p.cientifico)}</option>`).join('');
-
-    const code = document.getElementById('fzSmpCod');
-    if (code) {
-      const base = String(this.current.Numero_Fiscalizacao || '').replace(/^TF-/, 'AM-');
-      code.value = `${base}-${String(data.samples.length + 1).padStart(2, '0')}`;
-    }
-
-    this.initSignaturePad('fzSignFiscal');
-    this.initSignaturePad('fzSignResp');
   },
 
 
@@ -1990,7 +2336,45 @@ const FiscalizacoesModule = {
      TERMO DE FISCALIZAÇÃO (impressão / PDF)
   ======================================================= */
 
-  async printTerm() {
+  signatureCss() {
+    return `.sig img{height:70px;max-width:100%;object-fit:contain}
+      .sig-empty{height:70px;display:flex;align-items:flex-end;justify-content:center;color:#a00}
+      .sig-elec{height:70px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;font-size:10px;color:#176b3a;border:1px dashed #176b3a;border-radius:6px;padding:4px;margin:0 10px 4px}`;
+  },
+
+  /* Blocos de assinatura (fiscal + responsável) para os documentos impressos */
+  async signatureBlocks(doc, signs) {
+    const f = this.current;
+    const e = v => this.esc(v ?? '');
+    const fiscalSig = signs?.find(s => s.Tipo_Assinante === 'SERVIDOR');
+    const respSig = signs?.find(s => s.Tipo_Assinante !== 'SERVIDOR');
+    const pending = doc ? null : await getMeta(this.respSignKey());
+
+    const fiscalImg = fiscalSig ? fiscalSig.Assinatura : this.fiscalSignature(f);
+    const fiscalWhen = fiscalSig?.Data_Hora_Assinatura || doc?.Data_Hora_Emissao;
+    const fiscalTop = fiscalImg
+      ? `<img src="${e(fiscalImg)}">`
+      : doc
+        ? `<div class="sig-elec"><b>Assinado eletronicamente</b>${e(f.Nome_Servidor)}${f.Matricula_Servidor ? ' — mat. ' + e(f.Matricula_Servidor) : ''}<br>${this.formatDateTime(fiscalWhen)}</div>`
+        : '<div class="sig-empty"></div>';
+
+    const respImg = respSig ? respSig.Assinatura : (pending?.status === 'ASSINADO' ? pending.image : '');
+    const respStatus = respSig ? respSig.Status_Assinatura : pending?.status;
+    const respTop = respImg
+      ? `<img src="${e(respImg)}">`
+      : `<div class="sig-empty">${respStatus === 'RECUSADO' ? 'Recusou-se a assinar' : ''}</div>`;
+
+    return {
+      fiscalBlock: `<div class="sig">${fiscalTop}<div class="line">${e(f.Nome_Servidor)}<br><small>Fiscal responsável${f.Matricula_Servidor ? ' — mat. ' + e(f.Matricula_Servidor) : ''}</small></div></div>`,
+      respBlock: `<div class="sig">${respTop}<div class="line">${e(f.Responsavel_Presente)}<br><small>${e(this.label(this.VINCULOS, f.Vinculo_Responsavel))}${f.CPF_Responsavel ? ' — CPF ' + e(f.CPF_Responsavel) : ''}</small></div></div>`
+    };
+  },
+
+  /* =======================================================
+     TERMO DE COLETA DE AMOSTRA
+  ======================================================= */
+
+  async printSampleTerm() {
     const win = window.open('', '_blank');
     if (!win) {
       App.showMessage('Permita pop-ups para abrir o termo.', 'warning');
@@ -2001,40 +2385,26 @@ const FiscalizacoesModule = {
     const data = await this.loadAll();
     const doc = await this.getDocument();
     const signs = doc ? (await dbGetAll('assinaturas')).filter(a => a.ID_Documento_Local === doc.id) : [];
+    const { fiscalBlock, respBlock } = await this.signatureBlocks(doc, signs);
     const e = v => this.esc(v ?? '');
-    const table = (headers, rows) => rows.length
-      ? `<table><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${e(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`
-      : '<p class="none">Nenhum registro.</p>';
-
-    const programs = this.selectedPrograms().map(id => this.cat.programas.get(id)).filter(Boolean);
-    const evaluated = data.occs.filter(o => o.Resultado_Avaliacao && o.Resultado_Avaliacao !== 'NAO_AVALIADA');
-    const sign = tipo => signs.find(s => (tipo === 'SERVIDOR') === (s.Tipo_Assinante === 'SERVIDOR'));
-    const signBlock = (s, fallbackName, role) => `
-      <div class="sig">
-        ${s?.Assinatura ? `<img src="${e(s.Assinatura)}">` : `<div class="sig-empty">${s?.Status_Assinatura === 'RECUSADO' ? 'Recusou-se a assinar' : ''}</div>`}
-        <div class="line">${e(s?.Nome_Assinante || fallbackName)}<br><small>${e(role)}</small></div>
-      </div>`;
 
     const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
-      <title>${e(doc?.Numero_Documento || f.Numero_Fiscalizacao)}</title>
+      <title>Coleta de amostra ${e(f.Numero_Fiscalizacao)}</title>
       <style>
         body{font-family:Arial,sans-serif;color:#111;margin:24px;font-size:12px}
         h1{font-size:16px;margin:0}h2{font-size:13px;margin:16px 0 6px;border-bottom:1px solid #999;padding-bottom:3px}
         .head{display:flex;justify-content:space-between;gap:16px;border-bottom:2px solid #176b3a;padding-bottom:8px}
-        table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4px 6px;text-align:left;vertical-align:top}
-        th{background:#eef5f0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px}.none{color:#666}
-        .photos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.photos img{width:100%;border:1px solid #ccc}
-        .sigs{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:30px;text-align:center}
-        .sig img{height:70px;max-width:100%}.sig-empty{height:70px;display:flex;align-items:flex-end;justify-content:center;color:#a00}
-        .line{border-top:1px solid #000;padding-top:4px}.draft{color:#a00;font-weight:bold}
-        .foot{margin-top:24px;font-size:10px;color:#555;word-break:break-all}
+        table{width:100%;border-collapse:collapse;table-layout:fixed;word-break:break-word}th,td{border:1px solid #bbb;padding:4px 6px;text-align:left;vertical-align:top}
+        th{background:#eef5f0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px}
+        .sigs{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:40px;text-align:center}
+        .line{border-top:1px solid #000;padding-top:4px}
+        ${this.signatureCss()}
         @media print{button{display:none}body{margin:10mm}}
       </style></head><body>
       <button onclick="print()" style="float:right;padding:8px 14px">Imprimir / salvar PDF</button>
       <div class="head">
-        <div><h1>TERMO DE FISCALIZAÇÃO FITOSSANITÁRIA</h1><div>Gerência de Defesa Vegetal — Estado do Amazonas</div></div>
-        <div style="text-align:right"><strong>Nº ${e(doc?.Numero_Documento || f.Numero_Fiscalizacao)}</strong><br>
-          ${doc ? `Versão ${e(doc.Versao_Documento)} • emitido em ${this.formatDateTime(doc.Data_Hora_Emissao)}` : '<span class="draft">PRÉVIA — NÃO EMITIDO</span>'}</div>
+        <div><h1>TERMO DE COLETA DE AMOSTRA</h1><div>Gerência de Defesa Vegetal — Estado do Amazonas</div></div>
+        <div style="text-align:right"><strong>Ref. ${e(f.Numero_Fiscalizacao)}</strong><br>${this.formatDateTime(f.Data_Hora_Inicio)}</div>
       </div>
 
       <h2>1. Identificação</h2>
@@ -2042,56 +2412,194 @@ const FiscalizacoesModule = {
         <div><b>Produtor:</b> ${e(f.Nome_Produtor_Local)}</div>
         <div><b>CPF/CNPJ:</b> ${e(this.producer?.CPF_CNPJ || '')}</div>
         <div><b>Propriedade:</b> ${e(f.Nome_Propriedade_Local)}</div>
-        <div><b>Código oficial:</b> ${e(this.property?.Codigo_Propriedade_Oficial || '—')}</div>
         <div><b>Município/UF:</b> ${e(f.Municipio)} - AM</div>
         <div><b>Localidade:</b> ${e(this.property?.Comunidade_Localidade || '—')}</div>
-        <div><b>Início:</b> ${this.formatDateTime(f.Data_Hora_Inicio)}</div>
-        <div><b>Término:</b> ${this.formatDateTime(f.Data_Hora_Final)}</div>
-        <div><b>Tipo de ação:</b> ${e(this.label(this.TIPOS_ACAO, f.Tipo_Acao))}</div>
         <div><b>Coordenadas:</b> ${f.Latitude_Fiscalizacao !== '' && f.Latitude_Fiscalizacao != null ? e(f.Latitude_Fiscalizacao) + ', ' + e(f.Longitude_Fiscalizacao) : '—'}</div>
-        <div><b>Responsável presente:</b> ${e(f.Responsavel_Presente)} (${e(this.label(this.VINCULOS, f.Vinculo_Responsavel))})</div>
-        <div><b>Fiscal:</b> ${e(f.Nome_Servidor)}${f.Matricula_Servidor ? ' — mat. ' + e(f.Matricula_Servidor) : ''}</div>
-      </div>
-      ${programs.length ? `<p><b>Programa(s):</b> ${programs.map(p => e(this.programLabel(p)) + (p.legislacao ? ` (${e(p.legislacao)})` : '')).join('; ')}</p>` : ''}
-      ${f.Finalidade ? `<p><b>Finalidade:</b> ${e(f.Finalidade)}</p>` : ''}
-
-      <h2>2. Culturas fiscalizadas</h2>
-      ${table(['Cultura', 'Área fiscalizada (ha)', 'Plantas avaliadas'],
-        data.cults.map(c => [c.Nome_Cultura_Local, c.Area_Fiscalizada_ha, c.Quantidade_Plantas_Avaliadas]))}
-      ${data.dados.filter(d => d.Valor !== '').length ? table(['Cultura', 'Item verificado', 'Resposta'],
-        data.dados.filter(d => d.Valor !== '').map(d => [data.cults.find(c => c.id === d.ID_Fiscalizacao_Cultura_Local)?.Nome_Cultura_Local || '', d.Rotulo_Campo || d.Nome_Campo, d.Valor])) : ''}
-
-      <h2>3. Pragas avaliadas</h2>
-      ${table(['Cultura', 'Praga', 'Resultado', 'Nível', 'Sintomas / observações'],
-        evaluated.map(o => [o.Nome_Cultura_Local, `${o.Nome_Praga}${o.Nome_Cientifico ? ' (' + o.Nome_Cientifico + ')' : ''}`,
-          this.label(this.RESULTADOS, o.Resultado_Avaliacao), this.label(this.NIVEIS, o.Nivel_Infestacao) === '—' ? '' : this.label(this.NIVEIS, o.Nivel_Infestacao),
-          [o.Sintomas_Observados, o.Observacoes].filter(Boolean).join(' — ')]))}
-
-      <h2>4. Amostras coletadas</h2>
-      ${table(['Identificação', 'Lacre', 'Material', 'Qtde.', 'Praga / cultura', 'Laboratório'],
-        data.samples.map(s => [s.Identificacao_Amostra, s.Numero_Lacre, s.Tipo_Material, `${s.Quantidade ?? ''} ${s.Unidade || ''}`, [s.Nome_Praga_Relacionada, s.Nome_Cultura_Local].filter(Boolean).join(' — '), s.Laboratorio_Destino]))}
-
-      <h2>5. Providências determinadas</h2>
-      ${table(['Tipo', 'Nº', 'Descrição', 'Prazo'],
-        data.actions.map(a => [this.label(this.PROVIDENCIAS, a.Tipo_Providencia), a.Numero_Documento, a.Descricao, a.Prazo ? this.formatDate(a.Prazo) : '']))}
-
-      <h2>6. Conclusão</h2>
-      <p><b>Situação fitossanitária:</b> ${e(this.label(this.SITUACOES, f.Situacao_Fitossanitaria))}</p>
-      <p>${e(f.Observacoes || '')}</p>
-
-      ${data.photos.some(p => p.Foto && p.Incluir_PDF !== 'NAO') ? `<h2>7. Evidências fotográficas</h2><div class="photos">${
-        data.photos.filter(p => p.Foto && p.Incluir_PDF !== 'NAO').map(p => `<figure style="margin:0"><img src="${e(p.Foto)}"><figcaption>${e(p.Legenda)}</figcaption></figure>`).join('')}</div>` : ''}
-
-      <div class="sigs">
-        ${signBlock(sign('SERVIDOR'), f.Nome_Servidor, 'Fiscal responsável')}
-        ${signBlock(sign('OUTRO'), f.Responsavel_Presente, this.label(this.VINCULOS, f.Vinculo_Responsavel))}
       </div>
 
-      ${doc?.Hash_Documento ? `<div class="foot">Código de integridade (SHA-256): ${e(doc.Hash_Documento)}</div>` : ''}
+      <h2>2. Amostras coletadas</h2>
+      <table><thead><tr><th>Identificação</th><th>Lacre</th><th>Material</th><th>Qtde.</th><th>Cultura</th><th>Praga suspeita</th><th>Laboratório / análise</th><th>Coleta</th></tr></thead><tbody>
+        ${data.samples.map(s => `<tr><td>${e(s.Identificacao_Amostra)}</td><td>${e(s.Numero_Lacre)}</td><td>${e(s.Tipo_Material)}</td>
+          <td>${e(s.Quantidade)} ${e(s.Unidade)}</td><td>${e(s.Nome_Cultura_Local)}</td><td>${e(s.Nome_Praga_Relacionada)}</td>
+          <td>${e([s.Laboratorio_Destino, s.Analise_Solicitada].filter(Boolean).join(' — '))}</td><td>${this.formatDateTime(s.Data_Hora_Coleta)}</td></tr>`).join('')}
+      </tbody></table>
+      ${data.samples.some(s => s.Observacoes) ? `<p><b>Observações:</b> ${data.samples.filter(s => s.Observacoes).map(s => e(s.Identificacao_Amostra + ': ' + s.Observacoes)).join('; ')}</p>` : ''}
+
+      <h2>3. Declaração</h2>
+      <p>Declaro que a(s) amostra(s) acima descrita(s) foi(ram) coletada(s) na minha presença, devidamente identificada(s)
+      e lacrada(s), para fins de análise fitossanitária, recebendo cópia deste termo.</p>
+
+      <div class="sigs">${fiscalBlock}${respBlock}</div>
       </body></html>`;
 
     win.document.open();
     win.document.write(html);
     win.document.close();
-  }
+  },
+
+  async printTerm() {
+    const win = window.open('', '_blank');
+    if (!win) {
+      App.showMessage('Permita pop-ups para abrir o termo.', 'warning');
+      return;
+    }
+    const doc = await this.getDocument();
+    const html = await this.buildTermHTML(doc, true);
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+  },
+
+  unitCode(municipio) {
+    const name = String(municipio || '').trim();
+    const list = this.cat?.listas || [];
+    const found = list.find(l => String(l.Categoria) === 'MUNICIPIO_AM' &&
+      String(l.Rotulo).toLowerCase() === name.toLowerCase());
+    if (found) return String(found.Valor);
+    return name.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '') || 'AM';
+  },
+
+  formatDoc(value) {
+    const d = String(value || '').replace(/\D/g, '');
+    if (d.length === 11) return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    if (d.length === 14) return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+    return value || '';
+  },
+
+  /* Monta os dados do termo e devolve o HTML (modelo ADAF) */
+  async buildTermHTML(doc, forPrint) {
+    const f = this.current;
+    const data = await this.loadAll();
+    const p = this.property || {};
+    const pr = this.producer || {};
+    const signs = doc ? (await dbGetAll('assinaturas')).filter(a => a.ID_Documento_Local === doc.id) : [];
+    const pendingResp = doc ? null : await getMeta(this.respSignKey());
+    const pendingWits = doc ? [] : ((await getMeta(this.witnessKey())) || []);
+    const user = Auth.getUser();
+
+    const isPJ = String(pr.Tipo_Pessoa || '').toUpperCase() === 'JURIDICA';
+    const culturas = [...new Set(data.cults.map(c => c.Nome_Cultura_Local))];
+    const atividade = 'Produção agrícola' + (culturas.length ? ' — ' + culturas.join(', ') : '');
+    const [dia, hora] = String(f.Data_Hora_Inicio || '').split('T');
+    const lat = f.Latitude_Fiscalizacao !== '' && f.Latitude_Fiscalizacao != null ? f.Latitude_Fiscalizacao : (p.Latitude ?? '');
+    const lng = f.Longitude_Fiscalizacao !== '' && f.Longitude_Fiscalizacao != null ? f.Longitude_Fiscalizacao : (p.Longitude ?? '');
+
+    const fiscalSig = signs.find(s => s.Tipo_Assinante === 'SERVIDOR');
+    const respSig = signs.find(s => s.Tipo_Assinante !== 'SERVIDOR' && s.Tipo_Assinante !== 'TESTEMUNHA');
+    const witSigs = signs.filter(s => s.Tipo_Assinante === 'TESTEMUNHA')
+      .sort((x, y) => Number(x.Ordem_Assinatura || 0) - Number(y.Ordem_Assinatura || 0));
+
+    const fiscalImg = fiscalSig ? fiscalSig.Assinatura : this.fiscalSignature(f);
+    const electronic = doc && !fiscalImg
+      ? `${f.Nome_Servidor}${f.Matricula_Servidor ? ' — mat. ' + f.Matricula_Servidor : ''} — ${this.formatDateTime(fiscalSig?.Data_Hora_Assinatura || doc.Data_Hora_Emissao)}`
+      : '';
+
+    const respStatus = respSig ? respSig.Status_Assinatura : pendingResp?.status;
+    const respImg = respSig ? respSig.Assinatura : (pendingResp?.status === 'ASSINADO' ? pendingResp.image : '');
+    const respWhen = respSig?.Data_Hora_Assinatura || pendingResp?.at || '';
+
+    const numero = doc
+      ? (doc.Numero_Provisorio === 'SIM'
+          ? { seq: 'PROV', ano: doc.Ano_Documento, unidade: doc.Unidade_Documento, provisorio: true }
+          : { seq: String(doc.Numero_Sequencial).padStart(4, '0'), ano: doc.Ano_Documento, unidade: doc.Unidade_Documento })
+      : { seq: '', ano: '', unidade: this.unitCode(p.Municipio || f.Municipio) };
+
+    const evaluated = data.occs.filter(o => o.Resultado_Avaliacao && o.Resultado_Avaliacao !== 'NAO_AVALIADA');
+    const programs = this.selectedPrograms().map(id => this.cat.programas.get(id)).filter(Boolean);
+
+    const ctx = {
+      forPrint,
+      preview: !doc,
+      numero,
+      ident: {
+        nome: isPJ ? (f.Responsavel_Presente || '') : (pr.Nome_Razao_Social || f.Nome_Produtor_Local || ''),
+        cpf: isPJ ? this.formatDoc(f.CPF_Responsavel) : this.formatDoc(pr.CPF_CNPJ),
+        atividade: isPJ ? '' : atividade,
+        empresa: isPJ ? pr.Nome_Razao_Social : '',
+        cnpj: isPJ ? this.formatDoc(pr.CPF_CNPJ) : '',
+        atividadeEmpresa: isPJ ? atividade : '',
+        endereco: [p.Nome_Propriedade, p.Endereco, p.Comunidade_Localidade, p.Via_Acesso].filter(Boolean).join(', '),
+        municipio: p.Municipio || f.Municipio || '',
+        uf: 'AM',
+        telefone: pr.Telefone || '',
+        lat: lat === '' ? '' : String(lat),
+        lng: lng === '' ? '' : String(lng)
+      },
+      acao: {
+        data: dia ? this.formatDate(dia) : '',
+        hora: hora ? hora.slice(0, 5) : '',
+        local: [p.Nome_Propriedade || f.Nome_Propriedade_Local, p.Comunidade_Localidade, `município de ${p.Municipio || f.Municipio}/AM`].filter(Boolean).join(', '),
+        descricao: (doc ? f.Descricao_Acao : (this.val('fzDescricao') || f.Descricao_Acao)) || this.generateDescription(data)
+      },
+      enquadramento: (doc ? f.Enquadramento_Legal : (document.getElementById('fzEnquadramento') ? this.val('fzEnquadramento') : f.Enquadramento_Legal)) ?? this.generateLegal(data),
+      testemunhas: witSigs.length
+        ? witSigs.map(w => ({ nome: w.Nome_Assinante, doc: w.CPF_Assinante, image: w.Assinatura }))
+        : pendingWits.filter(Boolean),
+      recebimento: {
+        quando: respStatus === 'ASSINADO' && respWhen ? this.formatDateTime(respWhen) : '',
+        local: respStatus === 'ASSINADO' ? (p.Municipio || f.Municipio || '') + '/AM' : '',
+        assinatura: respImg ? { image: respImg } : (respStatus ? { status: respStatus } : null),
+        nome: f.Responsavel_Presente || '',
+        qualificacao: this.label(this.VINCULOS, f.Vinculo_Responsavel) + (f.CPF_Responsavel ? ' — CPF ' + this.formatDoc(f.CPF_Responsavel) : '')
+      },
+      servidor: {
+        nome: f.Nome_Servidor || '',
+        matricula: f.Matricula_Servidor || '',
+        cargo: (user && user.Nome_Completo === f.Nome_Servidor ? user.Cargo_Funcao : '') || 'Fiscal',
+        assinatura: fiscalImg ? { image: fiscalImg } : (electronic ? { electronic } : null)
+      },
+      anexo: {
+        titulo: `${f.Nome_Propriedade_Local} — ${dia ? this.formatDate(dia) : ''}`,
+        secoes: [
+          {
+            titulo: 'Dados da fiscalização',
+            colunas: ['Item', 'Informação'],
+            linhas: [
+              ['Registro interno', f.Numero_Fiscalizacao],
+              ['Tipo de ação', this.label(this.TIPOS_ACAO, f.Tipo_Acao)],
+              programs.length ? ['Programa(s)', programs.map(pg => this.programLabel(pg) + (pg.legislacao ? ` (${pg.legislacao})` : '')).join('\n')] : null,
+              f.Finalidade ? ['Finalidade', f.Finalidade] : null,
+              ['Início / término', `${this.formatDateTime(f.Data_Hora_Inicio)}${f.Data_Hora_Final ? ' — ' + this.formatDateTime(f.Data_Hora_Final) : ''}`],
+              ['Situação fitossanitária', this.label(this.SITUACOES, f.Situacao_Fitossanitaria || this.suggestSituation(data))]
+            ].filter(Boolean)
+          },
+          {
+            titulo: 'Culturas fiscalizadas',
+            colunas: ['Cultura', 'Área fiscalizada (ha)', 'Plantas avaliadas'],
+            linhas: data.cults.map(c => [c.Nome_Cultura_Local, this.fmtNum(c.Area_Fiscalizada_ha), c.Quantidade_Plantas_Avaliadas])
+          },
+          {
+            titulo: 'Itens verificados',
+            colunas: ['Cultura', 'Item', 'Resposta'],
+            linhas: data.dados.filter(d => d.Valor !== '').map(d => [data.cults.find(c => c.id === d.ID_Fiscalizacao_Cultura_Local)?.Nome_Cultura_Local || '', d.Rotulo_Campo || d.Nome_Campo, d.Valor])
+          },
+          {
+            titulo: 'Pragas avaliadas',
+            colunas: ['Cultura', 'Praga', 'Resultado', 'Nível / incidência', 'Sintomas / observações'],
+            linhas: evaluated.map(o => [
+              o.Nome_Cultura_Local,
+              `${o.Nome_Praga}${o.Nome_Cientifico ? '\n' + o.Nome_Cientifico : ''}`,
+              this.label(this.RESULTADOS, o.Resultado_Avaliacao),
+              [o.Nivel_Infestacao ? this.label(this.NIVEIS, o.Nivel_Infestacao) : '', o.Incidencia_Percentual !== '' && o.Incidencia_Percentual != null ? this.fmtNum(o.Incidencia_Percentual) + '%' : ''].filter(Boolean).join(' / '),
+              [o.Sintomas_Observados, o.Latitude_Ocorrencia ? `Foco: ${o.Latitude_Ocorrencia}, ${o.Longitude_Ocorrencia}` : '', o.Observacoes].filter(Boolean).join('\n')
+            ])
+          },
+          {
+            titulo: 'Amostras coletadas',
+            colunas: ['Identificação', 'Lacre', 'Material', 'Qtde.', 'Praga / cultura', 'Laboratório'],
+            linhas: data.samples.map(s => [s.Identificacao_Amostra, s.Numero_Lacre, s.Tipo_Material, `${s.Quantidade ?? ''} ${s.Unidade || ''}`.trim(), [s.Nome_Praga_Relacionada, s.Nome_Cultura_Local].filter(Boolean).join(' — '), s.Laboratorio_Destino])
+          },
+          {
+            titulo: 'Providências determinadas',
+            colunas: ['Tipo', 'Nº', 'Descrição', 'Prazo'],
+            linhas: data.actions.map(a => [this.label(this.PROVIDENCIAS, a.Tipo_Providencia), a.Numero_Documento, a.Descricao, a.Prazo ? this.formatDate(a.Prazo) : ''])
+          }
+        ],
+        fotos: data.photos.filter(ph => ph.Foto && ph.Incluir_PDF !== 'NAO').map(ph => ({ src: ph.Foto, legenda: ph.Legenda || '' })),
+        hash: doc?.Hash_Documento || ''
+      }
+    };
+
+    return TermoFiscalizacao.build(ctx);
+  },
 };
