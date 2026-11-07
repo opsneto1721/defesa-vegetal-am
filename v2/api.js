@@ -10,6 +10,38 @@ function apiIsConfigured() {
   );
 }
 
+/*
+  Token opcional. Se a propriedade API_TOKEN for criada
+  no Apps Script, o app pede a chave na primeira vez que
+  o servidor recusar a requisição e a guarda no aparelho.
+*/
+function getApiToken() {
+  try {
+    return localStorage.getItem('dv_api_token') || '';
+  } catch {
+    return '';
+  }
+}
+
+let apiTokenAsked = false;
+
+function askApiToken() {
+  if (apiTokenAsked) return;
+  apiTokenAsked = true;
+
+  const token = prompt(
+    'O servidor exige a chave de acesso da API. Informe a chave fornecida pela gerência:'
+  );
+
+  if (token && token.trim()) {
+    try {
+      localStorage.setItem('dv_api_token', token.trim());
+    } catch {
+      /* armazenamento indisponível */
+    }
+  }
+}
+
 /* =========================================================
    REQUISIÇÃO À API
 ========================================================= */
@@ -37,6 +69,7 @@ async function apiRequest(action, payload = {}) {
       body: JSON.stringify({
         action,
         payload,
+        token: getApiToken(),
         appVersion: APP_CONFIG.APP_VERSION,
         sentAt: new Date().toISOString()
       }),
@@ -49,6 +82,10 @@ async function apiRequest(action, payload = {}) {
     }
 
     const result = await response.json();
+
+    if (result && result.error === 'TOKEN_INVALIDO') {
+      askApiToken();
+    }
 
     if (!result || result.ok !== true) {
       throw new Error(

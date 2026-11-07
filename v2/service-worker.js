@@ -4,7 +4,7 @@
 ========================================================= */
 
 const CACHE_NAME =
-  'defesa-vegetal-am-v2-alpha-8';
+  'defesa-vegetal-am-v2-alpha-9';
 
 const APP_SHELL = [
   './',
@@ -14,6 +14,8 @@ const APP_SHELL = [
   './db.js',
   './api.js',
   './modules/cadastros.js',
+  './modules/dashboard.js',
+  './modules/fiscalizacoes.js',
   './app.js',
   './manifest.json'
 ];

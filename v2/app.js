@@ -51,6 +51,7 @@ if (
   apiIsConfigured()
 ) {
   await downloadServerRecords();
+  await this.refreshCatalogsSilently();
 }
 console.log(
   'Defesa Vegetal AM V2 inicializada.'
@@ -455,6 +456,9 @@ console.log(
       const result =
         await syncAll();
 
+      await downloadServerRecords();
+      await this.refreshCatalogsSilently();
+
 
       if (result.ok) {
 
@@ -490,6 +494,19 @@ console.log(
 
 
   /* =======================================================
+     CATÁLOGOS (pragas, culturas, programas...)
+  ======================================================= */
+
+  async refreshCatalogsSilently() {
+    try {
+      await syncCatalogs();
+    } catch (error) {
+      console.warn('Catálogos não atualizados:', error);
+    }
+  },
+
+
+  /* =======================================================
      MÓDULOS
   ======================================================= */
     openModule(moduleName) {
@@ -500,6 +517,11 @@ console.log(
 
 if (moduleName === 'dashboard') {
   DashboardModule.open();
+  return;
+}
+
+if (moduleName === 'fiscalizacoes') {
+  FiscalizacoesModule.open();
   return;
 }
 

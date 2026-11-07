@@ -228,6 +228,37 @@ async function addToSyncQueue({
   operation = 'UPSERT',
   dependsOn = []
 }) {
+  /*
+    Evita itens duplicados na fila: se o mesmo registro
+    já aguarda envio, apenas atualiza as dependências.
+    O envio sempre lê a versão mais recente do registro.
+  */
+  const existing = (await dbGetAll('syncQueue')).find(item =>
+    item.entity === entity &&
+    item.recordId === recordId &&
+    (item.status === 'PENDENTE' || item.status === 'ERRO')
+  );
+
+  if (existing) {
+    const deps = [...(existing.dependsOn || [])];
+
+    dependsOn.forEach(dep => {
+      if (!deps.some(d =>
+        d.entity === dep.entity && d.recordId === dep.recordId
+      )) {
+        deps.push(dep);
+      }
+    });
+
+    existing.dependsOn = deps;
+    existing.operation =
+      existing.operation === 'CREATE' ? 'CREATE' : operation;
+    existing.status = 'PENDENTE';
+
+    await dbPut('syncQueue', existing);
+    return existing;
+  }
+
   const queueItem = {
     id: createUUID(),
 
@@ -354,7 +385,14 @@ async function importServerRecords(records = {}) {
   const entityMap = {
     Produtores: 'produtores',
     Propriedades: 'propriedades',
-    Culturas: 'culturas'
+    Culturas: 'culturas',
+
+    fiscalizacoes: 'fiscalizacoes',
+    fiscalizacaoCulturas: 'fiscalizacaoCulturas',
+    ocorrenciasPragas: 'ocorrenciasPragas',
+    amostras: 'amostras',
+    providencias: 'providencias',
+    evidencias: 'evidencias'
   };
 
   let imported = 0;
@@ -405,7 +443,18 @@ async function importServerRecords(records = {}) {
       await dbPut(
         storeName,
         {
+          /*
+            Mantém campos que só existem no aparelho
+            (ex.: a foto em base64 das evidências, que no
+            servidor fica no Google Drive).
+          */
+          ...(localRecord || {}),
+
           ...item,
+
+          ...(localRecord?.Foto && !item.Foto
+            ? { Foto: localRecord.Foto }
+            : {}),
 
           id: String(id),
 

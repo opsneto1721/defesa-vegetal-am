@@ -1170,3 +1170,186 @@ main {
   }
 
 }
+
+
+/* =========================================================
+   MÓDULO DE FISCALIZAÇÕES
+========================================================= */
+
+.fz-select {
+  padding: 12px 13px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--text);
+  min-width: 150px;
+}
+
+.fz-row {
+  display: flex;
+  gap: 8px;
+}
+
+.fz-row input {
+  flex: 1;
+}
+
+.fz-pill {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #eef1ef;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.fz-ok {
+  background: var(--primary-light);
+  color: var(--primary-dark);
+}
+
+.fz-wait {
+  background: #fff4d6;
+  color: var(--warning);
+}
+
+.fz-bad {
+  background: #fde8e6;
+  color: var(--danger);
+}
+
+.fz-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.fz-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.fz-section-header h4 {
+  margin: 0;
+}
+
+.fz-count {
+  display: inline-block;
+  min-width: 22px;
+  padding: 2px 7px;
+  margin-left: 4px;
+  border-radius: 999px;
+  background: var(--background);
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.btn.fz-small {
+  white-space: nowrap;
+  padding: 7px 12px;
+  font-size: 13px;
+  width: auto;
+}
+
+.fz-inline-form {
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.fz-inline-form .form-actions {
+  margin-top: 16px;
+  padding-top: 14px;
+}
+
+.fz-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fz-item em {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.fz-legal {
+  color: var(--primary-dark) !important;
+}
+
+.fz-link-danger {
+  border: 0;
+  background: none;
+  color: var(--danger);
+  font-weight: 700;
+  font-size: 13px;
+  padding: 4px;
+  white-space: nowrap;
+}
+
+.btn.fz-danger {
+  color: var(--danger);
+  border-color: #f3c5c0;
+  margin-right: auto;
+}
+
+.fz-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.fz-photo {
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.fz-photo img {
+  display: block;
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+}
+
+.fz-photo figcaption {
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.fz-photo-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 140px;
+  color: var(--primary-dark);
+  background: var(--background);
+}
+
+@media (max-width: 700px) {
+  .fz-toolbar .btn,
+  .btn.fz-danger {
+    width: 100%;
+    margin-right: 0;
+  }
+
+  .fz-section-header .btn.fz-small {
+    width: auto;
+  }
+}
