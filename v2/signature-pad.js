@@ -128,8 +128,7 @@ const SignaturePad = {
       out.width = w;
       out.height = h;
       const o = out.getContext('2d');
-      o.fillStyle = '#ffffff';
-      o.fillRect(0, 0, w, h);
+      // Fundo transparente: a assinatura não cobre as linhas do documento
       o.lineCap = 'round';
       o.lineJoin = 'round';
       o.strokeStyle = '#0b1f3a';
