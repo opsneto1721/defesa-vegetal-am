@@ -514,3 +514,79 @@ window.addEventListener(
     }
   }
 );
+
+
+/* =========================================================
+   NUMERAÇÃO DOS TERMOS (sequência única estadual)
+
+   Com internet, o aparelho reserva um lote de números da
+   sequência estadual (aba Numeracao_Documentos). Em campo,
+   cada termo emitido usa o próximo número do lote, mesmo
+   offline. Se o lote acabar sem internet, o termo recebe
+   número provisório e o servidor atribui o definitivo na
+   sincronização.
+========================================================= */
+
+const NumberPool = {
+
+  TIPO: 'TERMO_FISCALIZACAO',
+  MINIMO: 10,
+  LOTE: 20,
+
+  async deviceId() {
+    let id = await getMeta('deviceId');
+    if (!id) {
+      id = 'DISP-' + createUUID().slice(0, 8).toUpperCase();
+      await setMeta('deviceId', id);
+    }
+    return id;
+  },
+
+  async get() {
+    const year = new Date().getFullYear();
+    const pool = (await getMeta('poolNumeracao_' + this.TIPO)) || { ano: year, numeros: [] };
+    // Números de outro ano não valem mais
+    if (Number(pool.ano) !== year) return { ano: year, numeros: [] };
+    return pool;
+  },
+
+  async available() {
+    return (await this.get()).numeros.length;
+  },
+
+  async ensure() {
+    if (!navigator.onLine || !apiIsConfigured()) return false;
+    const pool = await this.get();
+    if (pool.numeros.length >= this.MINIMO) return true;
+
+    try {
+      const result = await apiRequest('reserveNumbers', {
+        tipo: this.TIPO,
+        quantidade: this.LOTE,
+        dispositivo: await this.deviceId(),
+        servidor: (typeof Auth !== 'undefined' && Auth.getUser()?.Nome_Completo) || ''
+      });
+      const r = result.reserva;
+      if (!r) return false;
+      const fresh = await this.get();
+      const ano = Number(r.ano);
+      const numeros = ano === Number(fresh.ano) ? fresh.numeros.slice() : [];
+      for (let n = Number(r.inicio); n <= Number(r.fim); n++) numeros.push(n);
+      await setMeta('poolNumeracao_' + this.TIPO, { ano, numeros });
+      return true;
+    } catch (error) {
+      console.warn('Não foi possível reservar números de termo:', error);
+      return false;
+    }
+  },
+
+  /* Retorna { seq, ano } ou null se não houver número reservado */
+  async take() {
+    const pool = await this.get();
+    if (!pool.numeros.length) return null;
+    const seq = pool.numeros.shift();
+    await setMeta('poolNumeracao_' + this.TIPO, pool);
+    this.ensure();
+    return { seq, ano: pool.ano };
+  }
+};

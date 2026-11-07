@@ -23,6 +23,11 @@
   box-sizing: border-box;
 }
 
+/* O atributo hidden sempre esconde, mesmo em elementos com display próprio */
+[hidden] {
+  display: none !important;
+}
+
 html {
   -webkit-text-size-adjust: 100%;
 }
@@ -1686,4 +1691,400 @@ summary.fz-group-title {
   .user-badge {
     max-width: 130px;
   }
+}
+
+
+/* ---------- Janelas (folhas) de formulário ---------- */
+
+body.fz-sheet-open,
+body.sig-open {
+  overflow: hidden;
+}
+
+.fz-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 8000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(10, 30, 20, 0.45);
+}
+
+.fz-sheet {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 720px;
+  max-height: 92vh;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.fz-sheet-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.fz-sheet-head h3 {
+  margin: 0 0 4px;
+}
+
+.fz-sheet-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.fz-sheet-close {
+  border: 0;
+  background: var(--background);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 16px;
+  flex: none;
+}
+
+.fz-sheet-body {
+  padding: 18px 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.fz-sheet-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--background);
+}
+
+.fz-photo-preview {
+  max-width: 100%;
+  max-height: 220px;
+  border-radius: 10px;
+  object-fit: contain;
+  margin-top: 6px;
+}
+
+@media (max-width: 700px) {
+  .fz-sheet-overlay {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .fz-sheet {
+    max-width: none;
+    max-height: none;
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .fz-sheet-foot {
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .fz-sheet-foot .btn {
+    flex: 1;
+    width: auto;
+  }
+}
+
+/* Barra de ocorrência (praga suspeita/detectada) */
+
+.fz-occ-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.fz-occ-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.fz-missing {
+  color: var(--warning);
+  font-weight: 700;
+}
+
+.fz-mt {
+  margin-top: 8px;
+}
+
+/* Assinaturas na conclusão */
+
+.fz-signs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.fz-sign-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.fz-sign-card small {
+  color: var(--muted);
+}
+
+.fz-sign-card img {
+  max-height: 80px;
+  max-width: 100%;
+  object-fit: contain;
+  align-self: flex-start;
+  border-bottom: 1px solid var(--border);
+}
+
+.fz-sign-pending {
+  border-style: dashed;
+  border-color: #f0d68a;
+  background: #fffcf5;
+}
+
+.fz-sign-ok {
+  color: var(--success);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.fz-sign-refused {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.btn.fz-sign-btn {
+  margin-top: 4px;
+  padding: 14px;
+  font-size: 15px;
+}
+
+@media (max-width: 700px) {
+  .fz-signs {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Assinatura do servidor no perfil */
+
+.auth-sign {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.auth-sign small {
+  display: block;
+  color: var(--muted);
+}
+
+.auth-sign-preview {
+  grid-column: 1 / -1;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--background);
+  border-radius: 8px;
+  color: var(--muted);
+}
+
+.auth-sign-preview img {
+  max-height: 70px;
+  max-width: 100%;
+}
+
+.auth-sign .btn {
+  grid-column: 1 / -1;
+}
+
+/* ---------- Coleta de assinatura em tela cheia ---------- */
+
+.sig-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  background: #eef2ef;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+.sig-overlay[hidden] {
+  display: none;
+}
+
+.sig-top,
+.sig-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+}
+
+.sig-top strong,
+.sig-top small {
+  display: block;
+}
+
+.sig-top small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.sig-area {
+  position: relative;
+  flex: 1;
+  margin: 0 14px;
+  background: #ffffff;
+  border-radius: 14px;
+  border: 2px solid var(--border);
+  overflow: hidden;
+  touch-action: none;
+}
+
+.sig-area canvas {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.sig-baseline {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: 18%;
+  border-top: 2px solid #9aa79f;
+  padding-top: 6px;
+  text-align: center;
+  pointer-events: none;
+  color: var(--muted);
+}
+
+.sig-baseline span,
+.sig-baseline small {
+  display: block;
+}
+
+.sig-baseline span {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.sig-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  color: #c7d0ca;
+  pointer-events: none;
+}
+
+.sig-btn {
+  border: 0;
+  border-radius: 12px;
+  padding: 14px 18px;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.sig-primary {
+  background: var(--primary);
+  color: #ffffff;
+  flex: 1;
+  max-width: 360px;
+}
+
+.sig-primary:disabled {
+  opacity: 0.45;
+}
+
+.sig-ghost {
+  background: #ffffff;
+  border: 1px solid var(--border);
+}
+
+.sig-warn {
+  background: #fde8e6;
+  color: var(--danger);
+}
+
+
+/* ---------- Termo: textos e testemunhas ---------- */
+
+.fz-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.fz-muted {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.fz-witnesses {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px dashed #f0d68a;
+  border-radius: 12px;
+  background: #fffcf5;
+}
+
+.fz-witnesses > small {
+  display: block;
+  color: var(--muted);
+  margin: 2px 0 10px;
+}
+
+.fz-witness {
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.fz-witness img {
+  display: block;
+  max-height: 70px;
+  max-width: 100%;
+  margin: 8px 0;
+}
+
+.fz-witness .btn {
+  margin-top: 8px;
 }

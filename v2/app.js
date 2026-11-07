@@ -387,6 +387,8 @@ console.log(
 
     try {
 
+      await NumberPool.ensure();
+
       const pending =
         await countPendingSyncItems();
 
@@ -507,6 +509,8 @@ console.log(
     } catch (error) {
       console.warn('Catálogos não atualizados:', error);
     }
+    // Aproveita a conexão para manter números de termo reservados
+    await NumberPool.ensure();
   },
 
   /*

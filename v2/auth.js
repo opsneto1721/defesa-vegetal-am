@@ -12,6 +12,8 @@
    {
      ID_Servidor, Nome_Completo, Matricula,
      Cargo_Funcao, Unidade_Lotacao,
+     Assinatura: imagem (data URL) da assinatura do servidor,
+       usada automaticamente nos termos,
      origem: 'LOGIN' | 'IDENTIFICACAO_LOCAL'
    }
 ========================================================= */
@@ -125,6 +127,16 @@ const Auth = {
                 <input id="authCargo" maxlength="100" placeholder="Fiscal Estadual Agropecuário" value="${this.esc(current.origem === 'IDENTIFICACAO_LOCAL' && !current.ID_Servidor ? current.Cargo_Funcao : '')}">
               </div>
             </div>
+            <div class="auth-sign">
+              <div>
+                <strong>Assinatura do servidor</strong>
+                <small>Usada automaticamente nos termos que você emitir.</small>
+              </div>
+              <div class="auth-sign-preview" id="authSignPreview">
+                ${current.Assinatura ? `<img src="${current.Assinatura}" alt="Assinatura">` : '<span>Não cadastrada</span>'}
+              </div>
+              <button type="button" class="btn btn-secondary" id="authSignBtn">✍️ ${current.Assinatura ? 'Refazer assinatura' : 'Cadastrar assinatura'}</button>
+            </div>
             <p class="auth-note">Provisório: quando o login for implantado, esta identificação será feita automaticamente.</p>
             <div class="form-actions">
               <button type="button" class="btn btn-secondary" id="authCancel">Cancelar</button>
@@ -142,6 +154,26 @@ const Auth = {
         manualIds.forEach(id => { overlay.querySelector('#' + id).hidden = !manual; });
       };
       if (select) select.onchange = toggleManual;
+
+      let signature = current.Assinatura || '';
+
+      overlay.querySelector('#authSignBtn').onclick = async () => {
+        const nameField = overlay.querySelector('#authNome');
+        const chosen = select && select.value && select.value !== '__OUTRO__'
+          ? servers.find(item => String(item.ID_Servidor) === select.value)?.Nome_Completo
+          : nameField?.value;
+        overlay.hidden = true;
+        const result = await SignaturePad.capture({
+          title: 'Assinatura do servidor',
+          name: chosen || current.Nome_Completo || ''
+        });
+        overlay.hidden = false;
+        if (result && result.image) {
+          signature = result.image;
+          overlay.querySelector('#authSignPreview').innerHTML = `<img src="${signature}" alt="Assinatura">`;
+          overlay.querySelector('#authSignBtn').textContent = '✍️ Refazer assinatura';
+        }
+      };
 
       const close = result => {
         overlay.remove();
@@ -163,6 +195,7 @@ const Auth = {
             Matricula: s.Matricula || '',
             Cargo_Funcao: s.Cargo_Funcao || '',
             Unidade_Lotacao: s.Unidade_Lotacao || '',
+            Assinatura: signature,
             origem: 'IDENTIFICACAO_LOCAL'
           };
         } else {
@@ -177,6 +210,7 @@ const Auth = {
             Matricula: overlay.querySelector('#authMatricula').value.trim(),
             Cargo_Funcao: overlay.querySelector('#authCargo').value.trim(),
             Unidade_Lotacao: '',
+            Assinatura: signature,
             origem: 'IDENTIFICACAO_LOCAL'
           };
         }
