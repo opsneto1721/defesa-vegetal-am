@@ -241,9 +241,15 @@ const Auth = {
     }
 
     const user = this.getUser();
-    badge.textContent = user?.Nome_Completo
-      ? '👤 ' + user.Nome_Completo.split(' ').slice(0, 2).join(' ')
-      : '👤 Identificar-se';
+    badge.replaceChildren();
+    const icon = document.createElement('span');
+    icon.textContent = '👤';
+    const name = document.createElement('span');
+    name.className = 'ub-name';
+    name.textContent = user?.Nome_Completo
+      ? user.Nome_Completo.split(' ').slice(0, 2).join(' ')
+      : 'Identificar-se';
+    badge.append(icon, name);
     badge.title = user?.Nome_Completo
       ? `${user.Nome_Completo}${user.Matricula ? ' • ' + user.Matricula : ''} (toque para trocar)`
       : 'Identificar o servidor';

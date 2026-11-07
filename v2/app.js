@@ -550,6 +550,11 @@ if (moduleName === 'fiscalizacoes') {
   return;
 }
 
+if (moduleName === 'historico') {
+  HistoricoModule.open();
+  return;
+}
+
     /*
       Nesta primeira etapa, os cartões já são
       interativos, mas os formulários serão
