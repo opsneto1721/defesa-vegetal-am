@@ -830,7 +830,7 @@ async showProducerSelectionForProperty() {
 
       ID_Servidor_Cadastro:
         previous?.ID_Servidor_Cadastro ||
-        ''
+        Auth.currentServerId()
     };
 
 
@@ -2455,7 +2455,7 @@ document
 
       ID_Servidor_Cadastro:
         previous?.ID_Servidor_Cadastro ||
-        ''
+        Auth.currentServerId()
     };
 
 
@@ -2640,6 +2640,15 @@ document
 
 
           <button
+            class="btn btn-secondary"
+            type="button"
+            onclick="FiscalizacoesModule.startFromProperty('${this.escapeHTML(property.id)}')"
+          >
+            📋 Nova fiscalização
+          </button>
+
+
+          <button
             id="newCulture"
             class="btn btn-primary"
             type="button"
@@ -2652,6 +2661,9 @@ document
           </button>
 
         </div>
+
+
+        <div class="subsection" id="propertyInspections"></div>
 
 
         <div class="subsection">
@@ -2836,6 +2848,9 @@ document
 
       </div>
     `;
+
+
+    this.renderPropertyInspections(property);
 
 
     document
@@ -3787,6 +3802,17 @@ async toggleCultureStatus(culture) {
 
   getInitialCultureCatalog() {
 
+    /*
+      Usa o catálogo da planilha (Cadastro_Culturas)
+      quando já foi baixado; senão, a lista interna.
+    */
+    if (
+      Array.isArray(window.DV_CULTURE_CATALOG) &&
+      window.DV_CULTURE_CATALOG.length
+    ) {
+      return window.DV_CULTURE_CATALOG;
+    }
+
     return [
 
       {
@@ -4195,7 +4221,7 @@ async toggleCultureStatus(culture) {
       ID_Servidor_Cadastro:
         previous
           ?.ID_Servidor_Cadastro ||
-        '',
+        Auth.currentServerId(),
 
 
       Observacoes:
@@ -4642,6 +4668,45 @@ async showPropertySearch() {
   /* =======================================================
      MUNICÍPIOS DO AMAZONAS
   ======================================================= */
+
+  /* =======================================================
+     FISCALIZAÇÕES DA PROPRIEDADE
+  ======================================================= */
+
+  async renderPropertyInspections(property) {
+
+    const container =
+      document.getElementById('propertyInspections');
+
+    if (!container || typeof FiscalizacoesModule === 'undefined') {
+      return;
+    }
+
+    const list = (await dbGetAll('fiscalizacoes'))
+      .filter(f =>
+        f.ID_Propriedade_Local === property.id &&
+        f.Excluido !== 'SIM'
+      )
+      .sort((a, b) =>
+        String(b.Data_Hora_Inicio || b.localCreatedAt)
+          .localeCompare(String(a.Data_Hora_Inicio || a.localCreatedAt))
+      );
+
+    container.innerHTML = `
+      <h4>Fiscalizações (${list.length})</h4>
+      ${list.length
+        ? `<div class="search-results">${list.map(f => `
+            <button type="button" class="result-card"
+              onclick="FiscalizacoesModule.openFromAnywhere('${this.escapeHTML(f.id)}')">
+              <strong>${this.escapeHTML(f.Numero_Fiscalizacao || '')} ${FiscalizacoesModule.statusBadge(f)}</strong>
+              <small>${FiscalizacoesModule.formatDateTime(f.Data_Hora_Inicio)} •
+                ${this.escapeHTML(f.Siglas_Programas || FiscalizacoesModule.label(FiscalizacoesModule.TIPOS_ACAO, f.Tipo_Acao))} •
+                ${this.escapeHTML(f.Nome_Servidor || '')}</small>
+            </button>`).join('')}</div>`
+        : '<div class="empty-state">Nenhuma fiscalização registrada nesta propriedade.</div>'}
+    `;
+  },
+
 
   getAmazonasMunicipalities() {
 
