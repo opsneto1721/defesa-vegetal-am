@@ -83,7 +83,7 @@ const TermoFiscalizacao = {
       .box-sub { font-size: 7pt; color: #6b7886; }
       .gap { width: 3mm; }
       .sig { text-align: center; margin-top: 1mm; }
-      .sig img { max-height: 12mm; max-width: 62mm; display: block; margin: 0 auto; }
+      .sig img { max-height: 12mm; max-width: 62mm; display: block; margin: 0 auto -1.5mm; mix-blend-mode: multiply; position: relative; }
       .sig .line { border-top: 1px solid #1b2430; margin: 0 4mm; padding-top: 0.8mm; font-size: 8pt; color: #4a5866; }
       .sig .line b { color: #1b2430; font-size: 8.6pt; }
       .sig .blank { height: 9mm; }
@@ -92,6 +92,13 @@ const TermoFiscalizacao = {
       .wit td { padding: 0.5mm 0; font-size: 8pt; color: #4a5866; }
       .wit b { color: #1b2430; }
       .recv { font-size: 8pt; color: #4a5866; margin: 1mm 0; }
+      .via { font-size: 7.8pt; color: #1b2430; margin-top: 1.2mm; padding-top: 1mm; border-top: 1px dashed #d5dde5; }
+      .team { font-size: 7.4pt; color: #4a5866; margin-top: 1mm; text-align: center; }
+      .wit-na { margin-top: 2.2mm; font-size: 8pt; color: #4a5866; padding: 1.6mm 2.5mm; }
+      .wit-box { margin-top: 2.2mm; }
+      .signs .box { min-height: 33mm; }
+      .wit-row td { vertical-align: top; }
+      .na { font-size: 8pt; color: #6b7886; font-style: italic; padding: 8mm 0; text-align: center; }
 
       /* Rodapé */
       .vias { margin-top: 2mm; }
@@ -157,7 +164,7 @@ const TermoFiscalizacao = {
     const n = ctx.numero || {};
     const id = ctx.ident || {};
     const a = ctx.acao || {};
-    const r = ctx.recebimento || {};
+    const r = ctx.ciencia || ctx.recebimento || {};
     const sv = ctx.servidor || {};
     const wits = ctx.testemunhas || [];
     const hasAnexo = ctx.anexo && (ctx.anexo.secoes?.some(s => s.linhas.length) || ctx.anexo.fotos?.length);
@@ -222,29 +229,34 @@ const TermoFiscalizacao = {
         <table class="signs"><tr>
           <td style="width:50%">
             <div class="box">
-              <div class="box-h"><span class="n" style="display:inline-block;width:4.2mm;height:4.2mm;line-height:4.2mm;border-radius:50%;background:#12335f;color:#fff;text-align:center;font-size:7pt;margin-right:1mm">4</span>Testemunhas</div>
-              <div class="box-sub">Necessárias apenas quando o autuado se negar a assinar ou estiver ausente.</div>
-              ${this.witness(wits[0], 1)}
-              ${this.witness(wits[1], 2)}
+              <div class="box-h">Ciência do fiscalizado</div>
+              <div class="recv">Declaro ciência do inteiro teor deste Termo de Fiscalização${r.quando ? ` — ${e(r.quando)}${r.local ? ', ' + e(r.local) : ''}` : ''}.</div>
+              ${this.signature(r.assinatura, r.nome, r.qualificacao || 'Assinatura')}
+              <div class="via"><b>2ª via:</b> ${ctx.entrega ? e(ctx.entrega) : '____________________________________________'}</div>
             </div>
           </td>
           <td class="gap"></td>
           <td style="width:50%">
             <div class="box">
-              <div class="box-h">Recebimento da 2ª via</div>
-              <div class="recv">Recebi a 2ª via deste Termo em: <b>${r.quando ? e(r.quando) + (r.local ? ' — ' + e(r.local) : '') : '____/____/______, ____:____, ____________'}</b></div>
-              ${this.signature(r.assinatura, r.nome, r.qualificacao || 'Assinatura')}
-            </div>
-            <div class="box" style="margin-top:2.5mm">
               <div class="box-h">Servidor da ADAF</div>
+              <div class="recv">Fiscalização realizada por:</div>
               ${this.signature(sv.assinatura, sv.nome, [sv.cargo, sv.matricula ? 'Matrícula ' + sv.matricula : ''].filter(Boolean).join(' — ') || 'Assinatura e identificação')}
+              ${sv.equipe ? `<div class="via"><b>Equipe:</b> ${e(sv.equipe)}</div>` : ''}
             </div>
           </td>
         </tr></table>
 
-        <table class="vias"><tr>
-          <td><span>1ª via: Interessado</span></td><td><span>2ª via: ADAF Central</span></td><td><span>3ª via: Unidade Local</span></td>
-        </tr></table>
+        ${ctx.testemunhasAplicaveis === false
+          ? `<div class="box wit-na"><span class="box-h">4 – Testemunhas:</span> não se aplica — o fiscalizado assinou o termo.</div>`
+          : `<div class="box wit-box">
+              <div class="box-h"><span class="n" style="display:inline-block;width:4.2mm;height:4.2mm;line-height:4.2mm;border-radius:50%;background:#12335f;color:#fff;text-align:center;font-size:7pt;margin-right:1mm">4</span>Testemunhas
+                <span class="box-sub" style="text-transform:none;letter-spacing:0;font-weight:400"> — necessárias quando o autuado se negar a assinar ou estiver ausente</span></div>
+              <table class="wit-row"><tr>
+                <td style="width:50%">${this.witness(wits[0], 1)}</td>
+                <td class="gap"></td>
+                <td style="width:50%">${this.witness(wits[1], 2)}</td>
+              </tr></table>
+            </div>`}
 
         <table class="foot"><tr>
           <td style="width:62%">

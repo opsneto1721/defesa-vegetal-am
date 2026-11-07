@@ -78,6 +78,15 @@ const FiscalizacoesModule = {
     ['OUTRA', 'Outra']
   ],
 
+  ENTREGA_VIA: [
+    ['EM_MAOS', 'Entregue impressa, em mãos'],
+    ['DIGITAL', 'Enviada em formato digital (WhatsApp / e-mail)'],
+    ['POSTERIOR', 'Será entregue posteriormente'],
+    ['RECUSOU', 'Recusou-se a receber']
+  ],
+
+  CARGO_PADRAO: 'Fiscal Estadual Agropecuário',
+
   VINCULOS: [
     ['PROPRIETARIO', 'Proprietário'],
     ['PRODUTOR', 'Produtor / arrendatário'],
@@ -651,6 +660,11 @@ const FiscalizacoesModule = {
       checkedCultures = new Set(cultures.map(c => c.id));
     }
 
+    this._servers = (await dbGetAll('servidores'))
+      .filter(sv => sv.Nome_Completo && String(sv.Status || 'ATIVO').toUpperCase() !== 'INATIVO')
+      .sort((a, b) => String(a.Nome_Completo).localeCompare(String(b.Nome_Completo), 'pt-BR'));
+    this._team = this.getTeam(f);
+
     const programs = this.programsForCultureTypes(cultures.map(c => c.ID_Tipo_Cultura));
     const selectedProgs = new Set(existing
       ? String(f.ID_Programa || '').split(',').filter(Boolean)
@@ -742,8 +756,27 @@ const FiscalizacoesModule = {
               <label>Fiscal responsável</label>
               <div class="fz-readonly">
                 <strong>${this.esc(existing?.Nome_Servidor || user?.Nome_Completo || '')}</strong>
-                <small>${this.esc(existing ? (existing.Matricula_Servidor || '') : (user?.Matricula || ''))} ${!existing ? '• <a href="#" onclick="Auth.showIdentification().then(()=>FiscalizacoesModule.showGeneralForm(null, \'' + this.esc(this.property.id) + '\'));return false;">trocar</a>' : ''}</small>
+                <small>${this.esc(existing ? (existing.Cargo_Servidor || this.CARGO_PADRAO) : (user?.Cargo_Funcao || this.CARGO_PADRAO))}${(existing ? existing.Matricula_Servidor : user?.Matricula) ? ' • mat. ' + this.esc(existing ? existing.Matricula_Servidor : user?.Matricula) : ''}</small>
+                <small> ${!existing ? '• <a href="#" onclick="Auth.showIdentification().then(()=>FiscalizacoesModule.showGeneralForm(null, \'' + this.esc(this.property.id) + '\'));return false;">trocar</a>' : ''}</small>
               </div>
+            </div>
+
+            <div class="field field-wide">
+              <label for="fzTeamSel">Outros servidores na atividade</label>
+              <div id="fzTeamChips" class="fz-chips"></div>
+              <div class="fz-row">
+                <select id="fzTeamSel" class="fz-select" style="flex:1">
+                  <option value="">Selecione um servidor</option>
+                  ${(this._servers || []).filter(sv => sv.ID_Servidor !== (existing?.ID_Servidor || user?.ID_Servidor)).map(sv => `<option value="${this.esc(sv.ID_Servidor)}">${this.esc(sv.Nome_Completo)}${sv.Matricula ? ' — ' + this.esc(sv.Matricula) : ''}</option>`).join('')}
+                  <option value="__OUTRO__">Outro (digitar nome)</option>
+                </select>
+                <button type="button" class="btn btn-secondary fz-small" id="fzTeamAdd">Adicionar</button>
+              </div>
+              <div class="fz-row fz-mt" id="fzTeamManual" hidden>
+                <input id="fzTeamNome" placeholder="Nome completo" maxlength="150" style="flex:2">
+                <input id="fzTeamMat" placeholder="Matrícula" maxlength="40" style="flex:1">
+              </div>
+              <small>Servidores que acompanharam a fiscalização. Aparecem no termo junto ao fiscal responsável.</small>
             </div>
 
             <div class="field">
@@ -790,10 +823,77 @@ const FiscalizacoesModule = {
       };
     });
 
+    this.renderTeamChips();
+    const teamSel = document.getElementById('fzTeamSel');
+    teamSel.onchange = () => {
+      document.getElementById('fzTeamManual').hidden = teamSel.value !== '__OUTRO__';
+    };
+    document.getElementById('fzTeamAdd').onclick = () => this.addTeamMember();
+
     document.getElementById('fzGeneralForm').onsubmit = event => {
       event.preventDefault();
       this.saveGeneral(existing, cultures);
     };
+  },
+
+  /* ---------- Equipe ---------- */
+
+  getTeam(f) {
+    const raw = f?.Equipe_Servidores;
+    if (Array.isArray(raw)) return raw.slice();
+    try {
+      const parsed = JSON.parse(raw || '[]');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  },
+
+  teamNames(f) {
+    return this.getTeam(f).map(m => m.Nome_Completo + (m.Matricula ? ` (mat. ${m.Matricula})` : '')).join('; ');
+  },
+
+  renderTeamChips() {
+    const box = document.getElementById('fzTeamChips');
+    if (!box) return;
+    box.innerHTML = this._team.length
+      ? this._team.map((m, i) => `<span class="fz-chip">👤 ${this.esc(m.Nome_Completo)}${m.Matricula ? ' <small>' + this.esc(m.Matricula) + '</small>' : ''}
+          <button type="button" aria-label="Remover" onclick="FiscalizacoesModule.removeTeamMember(${i})">✕</button></span>`).join('')
+      : '<span class="fz-muted">Nenhum outro servidor vinculado.</span>';
+  },
+
+  addTeamMember() {
+    const sel = document.getElementById('fzTeamSel');
+    let member = null;
+    if (sel.value === '__OUTRO__') {
+      const nome = this.val('fzTeamNome');
+      if (!nome) {
+        App.showMessage('Informe o nome do servidor.', 'warning');
+        return;
+      }
+      member = { ID_Servidor: '', Nome_Completo: nome, Matricula: this.val('fzTeamMat'), Cargo_Funcao: '' };
+      document.getElementById('fzTeamNome').value = '';
+      document.getElementById('fzTeamMat').value = '';
+    } else if (sel.value) {
+      const sv = this._servers.find(x => String(x.ID_Servidor) === sel.value);
+      member = { ID_Servidor: sv.ID_Servidor, Nome_Completo: sv.Nome_Completo, Matricula: sv.Matricula || '', Cargo_Funcao: sv.Cargo_Funcao || '' };
+    } else {
+      App.showMessage('Selecione o servidor.', 'warning');
+      return;
+    }
+    if (this._team.some(m => (m.ID_Servidor && m.ID_Servidor === member.ID_Servidor) || m.Nome_Completo.toLowerCase() === member.Nome_Completo.toLowerCase())) {
+      App.showMessage('Esse servidor já está na equipe.', 'warning');
+      return;
+    }
+    this._team.push(member);
+    sel.value = '';
+    document.getElementById('fzTeamManual').hidden = true;
+    this.renderTeamChips();
+  },
+
+  removeTeamMember(i) {
+    this._team.splice(i, 1);
+    this.renderTeamChips();
   },
 
   captureGPS(latId, lngId, statusId) {
@@ -889,6 +989,9 @@ const FiscalizacoesModule = {
       ID_Servidor: existing ? existing.ID_Servidor : (user?.ID_Servidor || ''),
       Nome_Servidor: existing ? existing.Nome_Servidor : (user?.Nome_Completo || ''),
       Matricula_Servidor: existing ? existing.Matricula_Servidor : (user?.Matricula || ''),
+      Cargo_Servidor: existing ? (existing.Cargo_Servidor || this.CARGO_PADRAO) : (user?.Cargo_Funcao || this.CARGO_PADRAO),
+      Equipe_Servidores: this._team || [],
+      Nomes_Equipe: (this._team || []).map(m => m.Nome_Completo + (m.Matricula ? ` (mat. ${m.Matricula})` : '')).join('; '),
 
       Latitude_Fiscalizacao: lat,
       Longitude_Fiscalizacao: lng,
@@ -1008,8 +1111,9 @@ const FiscalizacoesModule = {
         </div>
 
         ${this.sectionCultures(data, editable)}
-        ${this.sectionSamples(data, editable)}
-        ${this.sectionActions(data, editable)}
+        ${this.positiveOccs(data).length || data.samples.length || data.actions.length
+          ? this.sectionSamples(data, editable) + this.sectionActions(data, editable)
+          : `<section class="subsection"><div class="fz-hint-card">🧪📄 <span><b>Amostras e providências</b> ficam disponíveis quando alguma praga for marcada como <b>suspeita</b> ou <b>detectada</b>.</span></div></section>`}
         ${this.sectionPhotos(data, editable)}
         ${this.sectionConclusion(f, data, editable, doc)}
       </div>`;
@@ -1488,9 +1592,9 @@ const FiscalizacoesModule = {
       body: `
         <div class="form-grid">
           <div class="field field-wide">
-            <label for="fzSmpOcc">Ocorrência / cultura *</label>
+            <label for="fzSmpOcc">Praga suspeita / detectada *</label>
             <select id="fzSmpOcc" required>
-              ${this.options(occs.map(o => ['occ:' + o.id, this.occLabel(o)]).concat(data.cults.map(c => ['fc:' + c.id, 'Sem ocorrência — ' + c.Nome_Cultura_Local])), pre)}
+              ${this.options(occs.map(o => ['occ:' + o.id, this.occLabel(o)]), pre)}
             </select>
           </div>
           <div class="field"><label for="fzSmpCod">Identificação da amostra *</label>
@@ -1632,7 +1736,7 @@ const FiscalizacoesModule = {
   sectionPhotos(data, editable) {
     return `
       <section class="subsection">
-        ${this.sectionHeader('📷 Evidências fotográficas', data.photos.length, 'FiscalizacoesModule.openPhotoSheet()', '📷 Adicionar foto', editable)}
+        ${this.sectionHeader('📷 Evidências fotográficas', data.photos.length, 'FiscalizacoesModule.openPhotoSheet()', '📷 Registrar evidência', editable)}
         ${data.photos.length ? `<div class="fz-gallery">${data.photos.map(p => `
           <figure class="fz-photo">
             ${p.Foto ? `<img src="${this.esc(p.Foto)}" alt="${this.esc(p.Legenda || 'Evidência')}">`
@@ -1640,6 +1744,7 @@ const FiscalizacoesModule = {
               : '<div class="fz-photo-link">Foto indisponível</div>'}
             <figcaption>${this.esc(p.Legenda || p.Descricao || 'Sem legenda')}
               ${p.Nome_Praga_Relacionada ? `<br><small>${this.esc(p.Nome_Praga_Relacionada)}</small>` : ''}
+              <br><small>${p.Data_Hora_Captura ? this.formatDateTime(p.Data_Hora_Captura) : ''}${p.Latitude !== '' && p.Latitude != null ? ` • ${p.Latitude}, ${p.Longitude}` : ''}</small>
               ${this.removeButton('evidencias', p.id, editable)}</figcaption>
           </figure>`).join('')}</div>` : `<div class="empty-state">Nenhuma foto registrada.</div>`}
       </section>`;
@@ -1648,21 +1753,36 @@ const FiscalizacoesModule = {
   async openPhotoSheet() {
     const data = await this.loadAll();
     const occs = this.positiveOccs(data);
+    this._photo = null;
+
     const { form } = this.openSheet({
       title: '📷 Evidência fotográfica',
       subtitle: this.esc(this.current.Nome_Propriedade_Local),
-      submitLabel: 'Salvar foto',
+      submitLabel: 'Salvar evidência',
       submitId: 'fzPhotoBtn',
       body: `
-        <div class="form-grid">
-          <div class="field field-wide"><label for="fzPhotoFile">Foto *</label>
-            <input id="fzPhotoFile" type="file" accept="image/*" capture="environment" required>
-            <img id="fzPhotoPreview" class="fz-photo-preview" hidden alt="">
-            <small>A foto é reduzida no aparelho (máx. 1280 px).</small></div>
+        <div class="fz-pick-row" id="fzPickRow">
+          <label class="fz-pick">
+            <input type="file" accept="image/*" capture="environment" id="fzCam" hidden>
+            <span class="fz-pick-icon">📸</span><strong>Tirar foto</strong><small>Usa a câmera e a localização atual</small>
+          </label>
+          <label class="fz-pick">
+            <input type="file" accept="image/*" id="fzGal" hidden>
+            <span class="fz-pick-icon">🖼️</span><strong>Enviar da galeria</strong><small>Usa a data e o GPS da foto, quando houver</small>
+          </label>
+        </div>
+
+        <div id="fzPhotoStage" hidden>
+          <img id="fzPhotoPreview" class="fz-photo-preview fz-photo-stage" alt="">
+          <div class="fz-photo-meta" id="fzPhotoMeta"></div>
+          <button type="button" class="fz-link" id="fzPhotoRedo">↺ Escolher outra foto</button>
+        </div>
+
+        <div class="form-grid fz-mt">
           <div class="field"><label for="fzPhotoRef">Relacionada a</label>
-            <select id="fzPhotoRef">${this.options(occs.map(o => ['occ:' + o.id, this.occLabel(o)]).concat(data.cults.map(c => ['fc:' + c.id, 'Cultura — ' + c.Nome_Cultura_Local])), '', 'Fiscalização em geral')}</select></div>
+            <select id="fzPhotoRef">${this.options(occs.map(o => ['occ:' + o.id, this.occLabel(o)]).concat(data.cults.map(c => ['fc:' + c.id, 'Cultura — ' + c.Nome_Cultura_Local])), occs.length === 1 ? 'occ:' + occs[0].id : '', 'Fiscalização em geral')}</select></div>
           <div class="field"><label for="fzPhotoDesc">Legenda</label>
-            <input id="fzPhotoDesc" maxlength="200"></div>
+            <input id="fzPhotoDesc" maxlength="200" placeholder="Ex.: frutos com sintomas"></div>
           <div class="field field-wide">
             <label class="fz-check-inline"><input type="checkbox" id="fzPhotoPdf" checked> Incluir no Termo</label>
           </div>
@@ -1670,14 +1790,184 @@ const FiscalizacoesModule = {
       onSubmit: () => this.savePhoto()
     });
 
-    const input = form.querySelector('#fzPhotoFile');
-    input.onchange = () => {
+    const handle = async (input, origem) => {
       const file = input.files?.[0];
-      const img = form.querySelector('#fzPhotoPreview');
       if (!file) return;
-      img.src = URL.createObjectURL(file);
-      img.hidden = false;
+      form.querySelector('#fzPickRow').hidden = true;
+      form.querySelector('#fzPhotoStage').hidden = false;
+      form.querySelector('#fzPhotoMeta').textContent = 'Processando foto e localização...';
+      try {
+        this._photo = await this.preparePhoto(file, origem);
+        form.querySelector('#fzPhotoPreview').src = this._photo.dataUrl;
+        const m = this._photo;
+        form.querySelector('#fzPhotoMeta').innerHTML = `
+          <span>🕒 ${this.esc(this.formatDateTime(m.when))}${m.whenSource === 'ARQUIVO' ? ' <small>(data do arquivo)</small>' : ''}</span>
+          <span>📍 ${m.lat !== '' ? `${m.lat}, ${m.lng}${m.acc ? ' (±' + m.acc + ' m)' : ''} <small>${m.coordSource === 'EXIF' ? '(GPS da foto)' : '(GPS do aparelho)'}</small>` : '<b>sem coordenadas</b> — ative a localização do aparelho'}</span>`;
+      } catch (error) {
+        console.error(error);
+        App.showMessage('Não foi possível processar a foto.', 'error');
+        form.querySelector('#fzPickRow').hidden = false;
+        form.querySelector('#fzPhotoStage').hidden = true;
+      }
+      input.value = '';
     };
+
+    form.querySelector('#fzCam').onchange = e => handle(e.target, 'CAMERA');
+    form.querySelector('#fzGal').onchange = e => handle(e.target, 'GALERIA');
+    form.querySelector('#fzPhotoRedo').onclick = () => {
+      this._photo = null;
+      form.querySelector('#fzPickRow').hidden = false;
+      form.querySelector('#fzPhotoStage').hidden = true;
+    };
+  },
+
+  /* Lê data e GPS do EXIF de fotos JPEG (sem bibliotecas) */
+  readExif(buffer) {
+    try {
+      const view = new DataView(buffer);
+      if (view.getUint16(0) !== 0xFFD8) return {};
+      let offset = 2;
+      while (offset < view.byteLength - 4) {
+        const marker = view.getUint16(offset);
+        const size = view.getUint16(offset + 2);
+        if (marker === 0xFFE1 && view.getUint32(offset + 4) === 0x45786966) {
+          const tiff = offset + 10;
+          const little = view.getUint16(tiff) === 0x4949;
+          const u16 = o => view.getUint16(o, little);
+          const u32 = o => view.getUint32(o, little);
+          const readIfd = start => {
+            const tags = {};
+            const n = u16(start);
+            for (let i = 0; i < n; i++) {
+              const e = start + 2 + i * 12;
+              tags[u16(e)] = { type: u16(e + 2), count: u32(e + 4), at: e + 8 };
+            }
+            return tags;
+          };
+          const valueOffset = t => (t.type === 2 && t.count <= 4) || (t.type === 5 && false) ? t.at : tiff + u32(t.at);
+          const ascii = t => {
+            const o = t.count <= 4 ? t.at : tiff + u32(t.at);
+            let s = '';
+            for (let i = 0; i < t.count - 1; i++) s += String.fromCharCode(view.getUint8(o + i));
+            return s;
+          };
+          const rationals = t => {
+            const o = tiff + u32(t.at);
+            const out = [];
+            for (let i = 0; i < t.count; i++) out.push(u32(o + i * 8) / (u32(o + i * 8 + 4) || 1));
+            return out;
+          };
+          const ifd0 = readIfd(tiff + u32(tiff + 4));
+          const result = {};
+          if (ifd0[0x8769]) {
+            const exif = readIfd(tiff + u32(ifd0[0x8769].at));
+            const dt = exif[0x9003] || exif[0x9004];
+            if (dt) {
+              const m = ascii(dt).match(/(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})/);
+              if (m) result.when = `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}`;
+            }
+          } else if (ifd0[0x0132]) {
+            const m = ascii(ifd0[0x0132]).match(/(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})/);
+            if (m) result.when = `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}`;
+          }
+          if (ifd0[0x8825]) {
+            const gps = readIfd(tiff + u32(ifd0[0x8825].at));
+            if (gps[2] && gps[4]) {
+              const toDeg = a => a[0] + a[1] / 60 + a[2] / 3600;
+              const latRef = String.fromCharCode(view.getUint8(gps[1].at));
+              const lngRef = String.fromCharCode(view.getUint8(gps[3].at));
+              let lat = toDeg(rationals(gps[2]));
+              let lng = toDeg(rationals(gps[4]));
+              if (latRef === 'S') lat = -lat;
+              if (lngRef === 'W') lng = -lng;
+              if (lat || lng) Object.assign(result, { lat, lng });
+            }
+          }
+          void valueOffset;
+          return result;
+        }
+        if ((marker & 0xFF00) !== 0xFF00) break;
+        offset += 2 + size;
+      }
+    } catch (error) {
+      console.warn('EXIF não lido:', error);
+    }
+    return {};
+  },
+
+  async preparePhoto(file, origem) {
+    const exif = this.readExif(await file.arrayBuffer());
+    let when, whenSource, lat = '', lng = '', acc = '', coordSource = '';
+
+    if (origem === 'GALERIA' && exif.when) {
+      when = exif.when; whenSource = 'EXIF';
+    } else if (origem === 'GALERIA') {
+      const d = new Date(file.lastModified || Date.now());
+      d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+      when = d.toISOString().slice(0, 19); whenSource = 'ARQUIVO';
+    } else {
+      const d = new Date();
+      d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+      when = d.toISOString().slice(0, 19); whenSource = 'CAPTURA';
+    }
+
+    if (origem === 'GALERIA' && exif.lat !== undefined) {
+      lat = Number(exif.lat.toFixed(6)); lng = Number(exif.lng.toFixed(6)); coordSource = 'EXIF';
+    } else {
+      const coords = await new Promise(resolve => {
+        if (!navigator.geolocation) return resolve(null);
+        navigator.geolocation.getCurrentPosition(p => resolve(p.coords), () => resolve(null),
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
+      });
+      if (coords) {
+        lat = Number(coords.latitude.toFixed(6)); lng = Number(coords.longitude.toFixed(6));
+        acc = Math.round(coords.accuracy); coordSource = 'APARELHO';
+      }
+    }
+
+    const dataUrl = await this.stampImage(file, [
+      `${this.formatDateTime(when)}${lat !== '' ? `  •  ${lat}, ${lng}${acc ? ' (±' + acc + ' m)' : ''}` : '  •  sem coordenadas'}`,
+      `${this.current.Numero_Fiscalizacao}  •  ${this.current.Nome_Propriedade_Local} — ${this.current.Municipio}/AM`
+    ]);
+
+    return { dataUrl, when, whenSource, lat, lng, acc, coordSource, origem };
+  },
+
+  /* Reduz a foto e grava a tarja com data, hora e coordenadas */
+  stampImage(file, lines, maxSize = 1600, quality = 0.75) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('IMAGEM_INVALIDA')); };
+      img.onload = () => {
+        const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+
+        const fs = Math.max(12, Math.round(w / 48));
+        const pad = Math.round(fs * 0.6);
+        const band = lines.length * fs * 1.35 + pad * 2;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.fillRect(0, h - band, w, band);
+        ctx.fillStyle = '#ffffff';
+        ctx.textBaseline = 'top';
+        lines.forEach((line, i) => {
+          ctx.font = `${i === 0 ? '600 ' : ''}${fs}px system-ui, Arial, sans-serif`;
+          let text = line;
+          while (ctx.measureText(text).width > w - pad * 2 && text.length > 10) text = text.slice(0, -2);
+          if (text !== line) text = text.slice(0, -1) + '…';
+          ctx.fillText(text, pad, h - band + pad + i * fs * 1.35);
+        });
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = url;
+    });
   },
 
   compressImage(file, maxSize = 1280, quality = 0.7) {
@@ -1702,49 +1992,44 @@ const FiscalizacoesModule = {
   },
 
   async savePhoto() {
-    const file = document.getElementById('fzPhotoFile')?.files?.[0];
-    if (!file) {
-      App.showMessage('Selecione ou tire uma foto.', 'warning');
+    const ph = this._photo;
+    if (!ph) {
+      App.showMessage('Tire uma foto ou escolha uma da galeria.', 'warning');
       return false;
     }
-    const btn = document.getElementById('fzPhotoBtn');
-    if (btn) btn.textContent = 'Processando...';
+    const [kind, refId] = (this.val('fzPhotoRef') || ':').split(':');
+    const occ = kind === 'occ' ? await dbGet('ocorrenciasPragas', refId) : null;
+    const fc = kind === 'fc' ? await dbGet('fiscalizacaoCulturas', refId)
+      : occ ? await dbGet('fiscalizacaoCulturas', occ.ID_Fiscalizacao_Cultura_Local) : null;
+    const id = createUUID();
 
-    try {
-      const [dataUrl, coords] = await Promise.all([this.compressImage(file), this.getPositionQuick()]);
-      const [kind, refId] = (this.val('fzPhotoRef') || ':').split(':');
-      const occ = kind === 'occ' ? await dbGet('ocorrenciasPragas', refId) : null;
-      const fc = kind === 'fc' ? await dbGet('fiscalizacaoCulturas', refId)
-        : occ ? await dbGet('fiscalizacaoCulturas', occ.ID_Fiscalizacao_Cultura_Local) : null;
-      const id = createUUID();
+    await this.saveChild('evidencias', {
+      id,
+      ID_Evidencia: id,
+      ID_Ocorrencia: occ?.ID_Ocorrencia || '',
+      ID_Ocorrencia_Local: occ?.id || '',
+      ID_Cultura: fc?.ID_Cultura || '',
+      Nome_Praga_Relacionada: occ?.Nome_Praga || '',
+      Tipo_Evidencia: 'FOTO',
+      Legenda: this.val('fzPhotoDesc'),
+      Foto: ph.dataUrl,
+      Arquivo_URL: '',
+      Nome_Arquivo: `${this.current.Numero_Fiscalizacao}_${Date.now()}.jpg`,
+      Incluir_PDF: document.getElementById('fzPhotoPdf').checked ? 'SIM' : 'NAO',
+      Origem_Foto: ph.origem,
+      Data_Hora_Captura: ph.when,
+      Fonte_Data_Hora: ph.whenSource,
+      Latitude: ph.lat,
+      Longitude: ph.lng,
+      Precisao_GPS_m: ph.acc,
+      Fonte_Coordenadas: ph.coordSource,
+      Data_Hora_Registro: new Date().toISOString(),
+      ID_Servidor: Auth.currentServerId()
+    }, occ ? [{ entity: 'ocorrenciasPragas', recordId: occ.id }] : []);
 
-      await this.saveChild('evidencias', {
-        id,
-        ID_Evidencia: id,
-        ID_Ocorrencia: occ?.ID_Ocorrencia || '',
-        ID_Ocorrencia_Local: occ?.id || '',
-        ID_Cultura: fc?.ID_Cultura || '',
-        Nome_Praga_Relacionada: occ?.Nome_Praga || '',
-        Tipo_Evidencia: 'FOTO',
-        Legenda: this.val('fzPhotoDesc'),
-        Foto: dataUrl,
-        Arquivo_URL: '',
-        Nome_Arquivo: `${this.current.Numero_Fiscalizacao}_${Date.now()}.jpg`,
-        Incluir_PDF: document.getElementById('fzPhotoPdf').checked ? 'SIM' : 'NAO',
-        Latitude: coords ? Number(coords.latitude.toFixed(6)) : '',
-        Longitude: coords ? Number(coords.longitude.toFixed(6)) : '',
-        Data_Hora_Registro: new Date().toISOString(),
-        ID_Servidor: Auth.currentServerId()
-      }, occ ? [{ entity: 'ocorrenciasPragas', recordId: occ.id }] : []);
-
-      App.showMessage('Foto salva.', 'success');
-      await this.renderWorkspace();
-    } catch (error) {
-      console.error(error);
-      App.showMessage('Não foi possível processar a foto.', 'error');
-      if (btn) btn.textContent = 'Salvar foto';
-      return false;
-    }
+    this._photo = null;
+    App.showMessage('Evidência salva.', 'success');
+    await this.renderWorkspace();
   },
 
 
@@ -1789,8 +2074,23 @@ const FiscalizacoesModule = {
       Situacao_Fitossanitaria: this.val('fzSituacao'),
       Descricao_Acao: this.val('fzDescricao'),
       Enquadramento_Legal: this.val('fzEnquadramento'),
-      Observacoes: this.val('fzObs')
+      Observacoes: this.val('fzObs'),
+      Forma_Entrega_Via: this.val('fzEntrega') || this.current.Forma_Entrega_Via || '',
+      Contato_Entrega_Via: this.val('fzEntregaContato')
     }, { operation: 'UPDATE' });
+  },
+
+  async setResponsibleMode(mode) {
+    await this.keepConclusionDraft();
+    const prev = await getMeta(this.respSignKey());
+    const next = { status: mode, at: new Date().toISOString() };
+    if (mode === 'ASSINADO' && prev?.status === 'ASSINADO' && prev.image) next.image = prev.image;
+    await setMeta(this.respSignKey(), next);
+    if (mode === 'AUSENTE' && !['POSTERIOR', 'DIGITAL'].includes(this.current.Forma_Entrega_Via)) {
+      this.current = await saveLocalRecord('fiscalizacoes', { ...this.current, Forma_Entrega_Via: 'POSTERIOR' }, { operation: 'UPDATE' });
+    }
+    await this.renderWorkspace();
+    if (mode === 'ASSINADO' && !next.image) await this.collectResponsibleSignature();
   },
 
   async markResponsibleAbsent() {
@@ -1887,27 +2187,40 @@ const FiscalizacoesModule = {
             <div class="fz-sign-card">
               <small>Servidor da ADAF</small>
               <strong>${this.esc(f.Nome_Servidor || '')}</strong>
+              <small>${this.esc(f.Cargo_Servidor || this.CARGO_PADRAO)}${f.Matricula_Servidor ? ' • mat. ' + this.esc(f.Matricula_Servidor) : ''}</small>
+              ${this.getTeam(f).length ? `<small>Equipe: ${this.esc(this.teamNames(f))}</small>` : ''}
               ${fiscalImg
                 ? `<img src="${this.esc(fiscalImg)}" alt="Assinatura do fiscal"><span class="fz-sign-ok">✓ Assinatura aplicada automaticamente</span>`
                 : `<span class="fz-sign-ok">✓ Assinatura eletrônica (nome, matrícula, data e hora)</span>
                    <button type="button" class="fz-link" onclick="Auth.showIdentification().then(()=>FiscalizacoesModule.renderWorkspace())">Cadastrar imagem da minha assinatura</button>`}
             </div>
 
-            <div class="fz-sign-card ${resp ? '' : 'fz-sign-pending'}">
-              <small>Recebimento da 2ª via — ${this.esc(this.label(this.VINCULOS, f.Vinculo_Responsavel))}</small>
+            <div class="fz-sign-card ${resp && (resp.status !== 'ASSINADO' || resp.image) ? '' : 'fz-sign-pending'}">
+              <small>Ciência do fiscalizado — ${this.esc(this.label(this.VINCULOS, f.Vinculo_Responsavel))}</small>
               <strong>${this.esc(f.Responsavel_Presente || '')}</strong>
-              ${resp?.status === 'ASSINADO' ? `<img src="${this.esc(resp.image)}" alt="Assinatura do responsável"><span class="fz-sign-ok">✓ Assinatura coletada</span>` : ''}
-              ${resp?.status === 'RECUSADO' ? `<span class="fz-sign-refused">Recusou-se a assinar</span>` : ''}
-              ${resp?.status === 'AUSENTE' ? `<span class="fz-sign-refused">Responsável ausente</span>` : ''}
-              <button type="button" class="btn ${resp ? 'btn-secondary' : 'btn-primary'} fz-sign-btn" id="fzRespSignBtn">✍️ ${resp ? 'Refazer assinatura' : 'Coletar assinatura do responsável'}</button>
-              ${resp?.status !== 'AUSENTE' ? `<button type="button" class="fz-link" id="fzRespAbsent">Responsável ausente</button>` : ''}
+              <div class="fz-seg" role="radiogroup" aria-label="Ciência do fiscalizado">
+                ${[['ASSINADO', '✍️ Assina'], ['RECUSADO', 'Recusou-se a assinar'], ['AUSENTE', 'Ausente']].map(([v, l]) => `
+                  <button type="button" role="radio" aria-checked="${resp?.status === v}" class="${resp?.status === v ? 'on' : ''}" data-resp-mode="${v}">${l}</button>`).join('')}
+              </div>
+              ${resp?.status === 'ASSINADO' && resp.image ? `<img src="${this.esc(resp.image)}" alt="Assinatura do fiscalizado"><span class="fz-sign-ok">✓ Assinatura coletada</span>` : ''}
+              ${resp?.status === 'ASSINADO' ? `<button type="button" class="btn ${resp.image ? 'btn-secondary' : 'btn-primary'} fz-sign-btn" id="fzRespSignBtn">✍️ ${resp.image ? 'Refazer assinatura' : 'Coletar assinatura (tela cheia)'}</button>` : ''}
+              ${resp?.status === 'RECUSADO' ? '<span class="fz-sign-refused">Recusou-se a assinar — registre duas testemunhas abaixo.</span>' : ''}
+              ${resp?.status === 'AUSENTE' ? '<span class="fz-sign-refused">Fiscalizado ausente — registre duas testemunhas abaixo.</span>' : ''}
+              ${!resp ? '<span class="fz-muted">Escolha uma opção. A assinatura declara ciência do termo, não o recebimento da via.</span>' : ''}
+            </div>
+
+            <div class="fz-sign-card">
+              <small>Entrega da 2ª via ao interessado</small>
+              <select id="fzEntrega">${this.options(this.ENTREGA_VIA.filter(([v]) => resp?.status !== 'AUSENTE' || v === 'POSTERIOR' || v === 'DIGITAL'), f.Forma_Entrega_Via || (resp?.status === 'AUSENTE' ? 'POSTERIOR' : 'EM_MAOS'), null)}</select>
+              <input id="fzEntregaContato" placeholder="WhatsApp ou e-mail do interessado" maxlength="120" value="${this.esc(f.Contato_Entrega_Via || this.producer?.Telefone || '')}" ${(f.Forma_Entrega_Via || '') === 'DIGITAL' ? '' : 'hidden'}>
+              <span class="fz-muted">Se for entregue depois, registre a entrega no Histórico.</span>
             </div>
           </div>
 
           ${needWitness ? `
             <div class="fz-witnesses">
               <strong>4 – Testemunhas</strong>
-              <small>Necessárias porque o responsável ${resp.status === 'AUSENTE' ? 'está ausente' : 'se recusou a assinar'}.</small>
+              <small>Necessárias porque o fiscalizado ${resp.status === 'AUSENTE' ? 'está ausente' : 'se recusou a assinar'}.</small>
               ${[0, 1].map(i => `
                 <div class="fz-witness">
                   <div class="form-grid">
@@ -2010,13 +2323,13 @@ const FiscalizacoesModule = {
     const result = await SignaturePad.capture({
       title: `Assinatura — ${this.label(this.VINCULOS, f.Vinculo_Responsavel)}`,
       name: f.Responsavel_Presente || '',
-      detail: [f.CPF_Responsavel ? 'CPF ' + f.CPF_Responsavel : '', `Termo ${f.Numero_Fiscalizacao}`].filter(Boolean).join(' • '),
-      allowRefusal: true
+      detail: [f.CPF_Responsavel ? 'CPF ' + f.CPF_Responsavel : '', `Ciente do Termo ${f.Numero_Fiscalizacao}`].filter(Boolean).join(' • '),
+      allowRefusal: false
     });
     if (!result) return;
     await this.keepConclusionDraft();
     await setMeta(this.respSignKey(), { ...result, at: new Date().toISOString() });
-    App.showMessage(result.status === 'ASSINADO' ? 'Assinatura coletada.' : 'Recusa registrada.', 'success');
+    App.showMessage('Assinatura coletada.', 'success');
     await this.renderWorkspace();
   },
 
@@ -2059,7 +2372,9 @@ const FiscalizacoesModule = {
       if (situacao === 'SEM_OCORRENCIA' && hasPositive) problems.push('há pragas suspeitas/detectadas, mas a situação indica “sem ocorrência”');
       if (situacao !== 'SEM_OCORRENCIA' && !hasPositive) problems.push('a situação indica praga, mas nenhuma foi marcada como suspeita/detectada');
 
-      if (!resp) problems.push('assinatura do responsável não coletada');
+      if (!resp) problems.push('ciência do fiscalizado não registrada (assinou, recusou-se ou ausente)');
+      if (resp?.status === 'ASSINADO' && !resp.image) problems.push('assinatura do fiscalizado não coletada');
+      if (this.val('fzEntrega') === 'DIGITAL' && !this.val('fzEntregaContato')) problems.push('informe o WhatsApp ou e-mail para o envio digital da 2ª via');
       if (!this.val('fzDescricao')) problems.push('descrição da ação (item 2 do termo) em branco');
       if (resp && (resp.status === 'RECUSADO' || resp.status === 'AUSENTE')) {
         const wits = ((await getMeta(this.witnessKey())) || []).filter(w => w && w.nome && w.image);
@@ -2078,6 +2393,8 @@ const FiscalizacoesModule = {
       Descricao_Acao: this.val('fzDescricao'),
       Enquadramento_Legal: this.val('fzEnquadramento'),
       Observacoes: this.val('fzObs'),
+      Forma_Entrega_Via: this.val('fzEntrega'),
+      Contato_Entrega_Via: this.val('fzEntrega') === 'DIGITAL' ? this.val('fzEntregaContato') : '',
       Data_Atualizacao: now
     };
     if (finish) {
@@ -2150,6 +2467,10 @@ const FiscalizacoesModule = {
       ID_Servidor_Emissor: f.ID_Servidor || user?.ID_Servidor || '',
       Nome_Servidor_Emissor: f.Nome_Servidor || user?.Nome_Completo || '',
       Status_Documento: 'EMITIDO',
+      Forma_Entrega_Via: f.Forma_Entrega_Via || '',
+      Contato_Entrega_Via: f.Contato_Entrega_Via || '',
+      Status_Entrega_Via: { EM_MAOS: 'ENTREGUE', DIGITAL: 'ENVIADA', RECUSOU: 'RECUSADA' }[f.Forma_Entrega_Via] || 'PENDENTE',
+      Data_Entrega_Via: ['EM_MAOS', 'DIGITAL'].includes(f.Forma_Entrega_Via) ? now() : '',
       PDF_URL: '',
       Hash_Documento: await this.digest(content),
       Observacoes: ''
@@ -2177,7 +2498,7 @@ const FiscalizacoesModule = {
       ID_Servidor: f.ID_Servidor || '',
       Nome_Assinante: f.Nome_Servidor || user?.Nome_Completo || '',
       CPF_Assinante: '',
-      Qualificacao_Assinante: [user?.Cargo_Funcao || 'Fiscal', f.Matricula_Servidor ? 'mat. ' + f.Matricula_Servidor : ''].filter(Boolean).join(' — '),
+      Qualificacao_Assinante: [f.Cargo_Servidor || user?.Cargo_Funcao || this.CARGO_PADRAO, f.Matricula_Servidor ? 'mat. ' + f.Matricula_Servidor : ''].filter(Boolean).join(' — '),
       Assinatura: fiscalImg,
       Status_Assinatura: fiscalImg ? 'ASSINADO' : 'ASSINADO_ELETRONICAMENTE'
     });
@@ -2188,8 +2509,8 @@ const FiscalizacoesModule = {
       Nome_Assinante: f.Responsavel_Presente || '',
       CPF_Assinante: f.CPF_Responsavel || '',
       Qualificacao_Assinante: this.label(this.VINCULOS, f.Vinculo_Responsavel),
-      Assinatura: resp?.status === 'ASSINADO' ? resp.image : '',
-      Status_Assinatura: resp?.status || 'PENDENTE'
+      Assinatura: resp?.status === 'ASSINADO' ? (resp.image || '') : '',
+      Status_Assinatura: resp?.status === 'ASSINADO' ? (resp.image ? 'ASSINADO' : 'PENDENTE') : (resp?.status || 'PENDENTE')
     });
 
     for (const [ordem, w] of witnesses.filter(x => x && x.nome).entries()) {
@@ -2266,8 +2587,14 @@ const FiscalizacoesModule = {
     const signBtn = document.getElementById('fzRespSignBtn');
     if (signBtn) signBtn.onclick = () => this.collectResponsibleSignature();
 
-    const absent = document.getElementById('fzRespAbsent');
-    if (absent) absent.onclick = () => this.markResponsibleAbsent();
+    document.querySelectorAll('[data-resp-mode]').forEach(btn => {
+      btn.onclick = () => this.setResponsibleMode(btn.dataset.respMode);
+    });
+
+    const entrega = document.getElementById('fzEntrega');
+    if (entrega) entrega.onchange = () => {
+      document.getElementById('fzEntregaContato').hidden = entrega.value !== 'DIGITAL';
+    };
 
     document.querySelectorAll('[data-wit-field]').forEach(el => {
       el.onchange = () => this.saveWitnessField(el);
@@ -2450,6 +2777,18 @@ const FiscalizacoesModule = {
     win.document.close();
   },
 
+  /* Texto sobre a entrega da 2ª via (separado da ciência) */
+  deliveryText(d) {
+    const when = d.Data_Entrega_Via ? this.formatDateTime(d.Data_Entrega_Via) : '';
+    switch (d.Forma_Entrega_Via) {
+      case 'EM_MAOS': return `Entregue impressa, em mãos${when ? ', em ' + when : ''}.`;
+      case 'DIGITAL': return `Enviada em formato digital${d.Contato_Entrega_Via ? ' para ' + d.Contato_Entrega_Via : ''}${when ? ', em ' + when : ''}.`;
+      case 'RECUSOU': return 'O interessado recusou-se a receber a 2ª via.';
+      case 'POSTERIOR': return when ? `Entregue posteriormente, em ${when}.` : 'A ser entregue posteriormente.';
+      default: return '';
+    }
+  },
+
   unitCode(municipio) {
     const name = String(municipio || '').trim();
     const list = this.cat?.listas || [];
@@ -2532,20 +2871,23 @@ const FiscalizacoesModule = {
         descricao: (doc ? f.Descricao_Acao : (this.val('fzDescricao') || f.Descricao_Acao)) || this.generateDescription(data)
       },
       enquadramento: (doc ? f.Enquadramento_Legal : (document.getElementById('fzEnquadramento') ? this.val('fzEnquadramento') : f.Enquadramento_Legal)) ?? this.generateLegal(data),
+      testemunhasAplicaveis: respStatus === 'RECUSADO' || respStatus === 'AUSENTE',
       testemunhas: witSigs.length
         ? witSigs.map(w => ({ nome: w.Nome_Assinante, doc: w.CPF_Assinante, image: w.Assinatura }))
         : pendingWits.filter(Boolean),
-      recebimento: {
-        quando: respStatus === 'ASSINADO' && respWhen ? this.formatDateTime(respWhen) : '',
-        local: respStatus === 'ASSINADO' ? (p.Municipio || f.Municipio || '') + '/AM' : '',
-        assinatura: respImg ? { image: respImg } : (respStatus ? { status: respStatus } : null),
+      ciencia: {
+        quando: respStatus === 'ASSINADO' && respImg && respWhen ? this.formatDateTime(respWhen) : '',
+        local: (p.Municipio || f.Municipio || '') + '/AM',
+        assinatura: respImg ? { image: respImg } : (respStatus && respStatus !== 'ASSINADO' ? { status: respStatus } : null),
         nome: f.Responsavel_Presente || '',
         qualificacao: this.label(this.VINCULOS, f.Vinculo_Responsavel) + (f.CPF_Responsavel ? ' — CPF ' + this.formatDoc(f.CPF_Responsavel) : '')
       },
+      entrega: this.deliveryText(doc || { Forma_Entrega_Via: this.val('fzEntrega') || f.Forma_Entrega_Via, Contato_Entrega_Via: this.val('fzEntregaContato') || f.Contato_Entrega_Via }),
       servidor: {
         nome: f.Nome_Servidor || '',
         matricula: f.Matricula_Servidor || '',
-        cargo: (user && user.Nome_Completo === f.Nome_Servidor ? user.Cargo_Funcao : '') || 'Fiscal',
+        cargo: f.Cargo_Servidor || (user && user.Nome_Completo === f.Nome_Servidor ? user.Cargo_Funcao : '') || this.CARGO_PADRAO,
+        equipe: this.teamNames(f),
         assinatura: fiscalImg ? { image: fiscalImg } : (electronic ? { electronic } : null)
       },
       anexo: {
@@ -2557,6 +2899,8 @@ const FiscalizacoesModule = {
             linhas: [
               ['Registro interno', f.Numero_Fiscalizacao],
               ['Tipo de ação', this.label(this.TIPOS_ACAO, f.Tipo_Acao)],
+              ['Fiscal responsável', `${f.Nome_Servidor || ''} — ${f.Cargo_Servidor || this.CARGO_PADRAO}${f.Matricula_Servidor ? ', mat. ' + f.Matricula_Servidor : ''}`],
+              this.getTeam(f).length ? ['Equipe', this.getTeam(f).map(m => m.Nome_Completo + (m.Matricula ? ' (mat. ' + m.Matricula + ')' : '') + (m.Cargo_Funcao ? ' — ' + m.Cargo_Funcao : '')).join('\n')] : null,
               programs.length ? ['Programa(s)', programs.map(pg => this.programLabel(pg) + (pg.legislacao ? ` (${pg.legislacao})` : '')).join('\n')] : null,
               f.Finalidade ? ['Finalidade', f.Finalidade] : null,
               ['Início / término', `${this.formatDateTime(f.Data_Hora_Inicio)}${f.Data_Hora_Final ? ' — ' + this.formatDateTime(f.Data_Hora_Final) : ''}`],

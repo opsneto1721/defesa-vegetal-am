@@ -175,6 +175,7 @@ const HistoricoModule = {
             <span class="fz-pill ${cls}">${st}</span>
             ${d.Numero_Provisorio === 'SIM' ? '<span class="fz-pill fz-wait">Nº provisório</span>' : ''}
             ${Number(d.Versao_Documento) > 1 ? `<span class="fz-pill">versão ${this.esc(d.Versao_Documento)}</span>` : ''}
+            ${d.Status_Documento === 'EMITIDO' && d.Status_Entrega_Via === 'PENDENTE' ? '<span class="fz-pill fz-wait">2ª via pendente</span>' : ''}
           </div>
           <span>${this.esc(f.Nome_Propriedade_Local || '')}${f.Nome_Produtor_Local ? ' • ' + this.esc(f.Nome_Produtor_Local) : ''}${f.Municipio ? ' • ' + this.esc(f.Municipio) : ''}</span>
           <small>Emitido em ${this.fmt(d.Data_Hora_Emissao)} • ${this.esc(d.Nome_Servidor_Emissor || f.Nome_Servidor || '')}${f.Siglas_Programas ? ' • ' + this.esc(f.Siglas_Programas) : ''}${situacao ? ' • ' + situacao : ''}</small>
@@ -182,12 +183,57 @@ const HistoricoModule = {
             <button type="button" class="btn btn-primary fz-small" onclick="HistoricoModule.downloadPdf('${this.esc(d.id)}')" ${!hasPdf && !synced ? 'disabled' : ''}>
               ${cached ? '✓ Abrir PDF' : '⬇ Baixar PDF'}
             </button>
+            ${d.Status_Documento === 'EMITIDO' && d.Status_Entrega_Via === 'PENDENTE' ? `<button type="button" class="btn btn-secondary fz-small" onclick="HistoricoModule.registerDelivery('${this.esc(d.id)}')">📬 Registrar entrega da 2ª via</button>` : ''}
             ${f.id ? `<button type="button" class="btn btn-secondary fz-small" onclick="FiscalizacoesModule.openFromAnywhere('${this.esc(f.id)}')">Abrir fiscalização</button>` : ''}
             ${f.id ? `<button type="button" class="btn btn-secondary fz-small" onclick="HistoricoModule.openTimeline('${this.esc(f.ID_Propriedade_Local)}')">Linha do tempo</button>` : ''}
           </div>
           ${!synced ? '<small class="fz-muted">Aguardando sincronização — o PDF oficial é gerado no servidor ao sincronizar. Use “Abrir fiscalização → Termo” para ver a versão do aparelho.</small>' : ''}
         </div>
       </article>`;
+  },
+
+  /* Entrega da 2ª via feita depois da emissão */
+  async registerDelivery(docId) {
+    const d = await dbGet('documentos', docId);
+    if (!d) return;
+    const { f, producer } = this.docInfo(d);
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+
+    FiscalizacoesModule.openSheet({
+      title: '📬 Entrega da 2ª via',
+      subtitle: `Termo nº ${this.esc(d.Numero_Documento)} • ${this.esc(f.Nome_Produtor_Local || '')}`,
+      submitLabel: 'Registrar entrega',
+      body: `
+        <div class="form-grid">
+          <div class="field"><label for="hsEntForma">Forma de entrega *</label>
+            <select id="hsEntForma" required>
+              <option value="EM_MAOS">Entregue impressa, em mãos</option>
+              <option value="DIGITAL">Enviada em formato digital</option>
+              <option value="RECUSOU">Recusou-se a receber</option>
+            </select></div>
+          <div class="field"><label for="hsEntData">Data e hora *</label>
+            <input id="hsEntData" type="datetime-local" required value="${now.toISOString().slice(0, 16)}"></div>
+          <div class="field field-wide"><label for="hsEntContato">WhatsApp / e-mail (envio digital)</label>
+            <input id="hsEntContato" maxlength="120" value="${this.esc(d.Contato_Entrega_Via || producer.Telefone || '')}"></div>
+        </div>
+        <p class="fz-muted">A entrega fica registrada no sistema e no Histórico. O PDF já emitido não é alterado.</p>`,
+      onSubmit: async () => {
+        const forma = this.val('hsEntForma');
+        await saveLocalRecord('documentos', {
+          ...d,
+          Forma_Entrega_Via: forma,
+          Contato_Entrega_Via: forma === 'DIGITAL' ? this.val('hsEntContato') : d.Contato_Entrega_Via || '',
+          Status_Entrega_Via: { EM_MAOS: 'ENTREGUE', DIGITAL: 'ENVIADA', RECUSOU: 'RECUSADA' }[forma],
+          Data_Entrega_Via: forma === 'RECUSOU' ? '' : this.val('hsEntData'),
+          Data_Recusa_Via: forma === 'RECUSOU' ? this.val('hsEntData') : ''
+        }, { operation: 'UPDATE' });
+        await App.updateSyncStatus();
+        App.showMessage('Entrega registrada.', 'success');
+        await this.load();
+        this.renderDocuments();
+      }
+    });
   },
 
   base64ToBlob(base64, type = 'application/pdf') {
