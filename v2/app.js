@@ -33,6 +33,8 @@ const App = {
 
       this.setVersion();
 
+      /* Login obrigatório (sessão de 30 dias, funciona offline) */
+      await Auth.requireLogin();
       Auth.renderBadge();
       await this.loadCultureCatalogCache();
       window.addEventListener('catalogs-updated', () => this.loadCultureCatalogCache());
@@ -195,6 +197,8 @@ console.log(
       },
 
      bindMenuCards() {
+
+    Auth.decorateHome();
 
     document
       .querySelectorAll('.menu-card')
@@ -552,6 +556,15 @@ if (moduleName === 'fiscalizacoes') {
 
 if (moduleName === 'historico') {
   HistoricoModule.open();
+  return;
+}
+
+if (moduleName === 'servidores') {
+  if (!Auth.can('servidores')) {
+    this.showMessage('Seu perfil não tem acesso a este módulo.', 'warning');
+    return;
+  }
+  ServidoresModule.open();
   return;
 }
 

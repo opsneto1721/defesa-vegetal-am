@@ -70,6 +70,7 @@ async function apiRequest(action, payload = {}) {
         action,
         payload,
         token: getApiToken(),
+        session: (typeof Auth !== 'undefined' && action !== 'login') ? Auth.token() : '',
         appVersion: APP_CONFIG.APP_VERSION,
         sentAt: new Date().toISOString()
       }),
@@ -85,6 +86,12 @@ async function apiRequest(action, payload = {}) {
 
     if (result && result.error === 'TOKEN_INVALIDO') {
       askApiToken();
+    }
+
+    /* Sessão recusada pelo servidor: pede login de novo */
+    if (result && ['NAO_AUTENTICADO', 'SESSAO_INVALIDA', 'SESSAO_EXPIRADA', 'USUARIO_INATIVO']
+      .includes(String(result.error).split(':')[0]) && action !== 'login' && typeof Auth !== 'undefined') {
+      Auth.onSessionLost(String(result.error).split(':')[0]);
     }
 
     if (!result || result.ok !== true) {

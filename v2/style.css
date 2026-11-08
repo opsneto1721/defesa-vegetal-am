@@ -3008,3 +3008,193 @@ body {
   margin: 0;
   accent-color: var(--primary);
 }
+
+
+/* =========================================================
+   LOGIN
+========================================================= */
+
+body.auth-open {
+  overflow: hidden;
+}
+
+.auth-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 9800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(31, 138, 76, 0.18), transparent 45%),
+    radial-gradient(circle at 90% 90%, rgba(18, 51, 95, 0.18), transparent 45%),
+    var(--background);
+  overflow-y: auto;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 30px 28px 22px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: 0 20px 50px rgba(15, 40, 25, 0.12);
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.auth-brand h1 {
+  margin: 0;
+  font-size: 19px;
+}
+
+.auth-brand p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.auth-card h2 {
+  margin: 0 0 14px;
+  font-size: 22px;
+}
+
+.auth-sub {
+  margin: -6px 0 16px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.auth-card .field {
+  margin-bottom: 14px;
+}
+
+.auth-card .field input {
+  width: 100%;
+}
+
+.auth-pass {
+  position: relative;
+}
+
+.auth-pass input {
+  padding-right: 46px;
+}
+
+.auth-eye {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  font-size: 18px;
+  padding: 6px;
+}
+
+.auth-submit {
+  width: 100%;
+  margin-top: 6px;
+  padding: 14px;
+  font-size: 16px;
+}
+
+.auth-alert {
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  border-radius: 10px;
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  font-size: 14px;
+}
+
+.auth-warn {
+  background: #fff4d6;
+  color: var(--warning);
+}
+
+.auth-error {
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border-radius: 10px;
+  background: #fde8e6;
+  color: var(--danger);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.auth-foot {
+  margin: 16px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.auth-version {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+}
+
+
+/* =========================================================
+   SERVIDORES
+========================================================= */
+
+.sv-help {
+  margin: 4px 0 16px;
+  font-size: 14px;
+}
+
+.sv-help summary {
+  cursor: pointer;
+  color: var(--primary-dark);
+  font-weight: 700;
+}
+
+.sv-help table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  background: var(--surface);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.sv-help th,
+.sv-help td {
+  text-align: left;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.sv-help th {
+  background: var(--background);
+}
+
+.sv-inactive {
+  opacity: 0.6;
+}
+
+.sv-pass {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 30px;
+  letter-spacing: 0.12em;
+  text-align: center;
+  padding: 18px;
+  margin-bottom: 14px;
+  border: 2px dashed var(--primary);
+  border-radius: 14px;
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  user-select: all;
+}
