@@ -196,7 +196,16 @@ const FiscalizacoesModule = {
   },
 
   isEditable() {
-    return this.current && this.status(this.current) === 'EM_ANDAMENTO';
+    return this.current && this.status(this.current) === 'EM_ANDAMENTO' && this.canManage(this.current);
+  },
+
+  /* Perfil: gerência altera qualquer; fiscal, as próprias ou em que está na equipe */
+  canManage(f) {
+    if (!Auth.can('fiscalizar')) return false;
+    if (Auth.can('gestao')) return true;
+    const me = Auth.currentServerId();
+    if (!f.ID_Servidor || f.ID_Servidor === me) return true;
+    return this.getTeam(f).some(m => m.ID_Servidor && m.ID_Servidor === me);
   },
 
   // ID usado nos vínculos da planilha: oficial, se existir; senão o ID local
@@ -430,7 +439,8 @@ const FiscalizacoesModule = {
 
         <div id="fzListControls">
           <div class="module-actions">
-            <button type="button" class="action-card" onclick="FiscalizacoesModule.startNew()">
+            ${Auth.can('fiscalizar') ? '' : '<div class="fz-hint-card">👁 Seu perfil permite consultar as fiscalizações. Para registrar, peça ao administrador o perfil Fiscal.</div>'}
+            <button type="button" class="action-card" onclick="FiscalizacoesModule.startNew()" ${Auth.can('fiscalizar') ? '' : 'hidden'}>
               <span class="action-icon">➕</span>
               <span><strong>Nova fiscalização</strong><small>Escolher a propriedade cadastrada</small></span>
             </button>
@@ -464,6 +474,10 @@ const FiscalizacoesModule = {
 
   /* Atalho usado pelo módulo Cadastros */
   async startFromProperty(propertyId) {
+    if (!Auth.can('fiscalizar')) {
+      App.showMessage('Seu perfil não permite registrar fiscalizações.', 'warning');
+      return;
+    }
     await this.open();
     await this.showGeneralForm(null, propertyId);
   },
@@ -554,6 +568,10 @@ const FiscalizacoesModule = {
 
   async startNew() {
     if (!(await Auth.ensureUser())) return;
+    if (!Auth.can('fiscalizar')) {
+      App.showMessage('Seu perfil não permite registrar fiscalizações.', 'warning');
+      return;
+    }
     this.current = null;
     this.showListControls(false);
 
@@ -757,7 +775,7 @@ const FiscalizacoesModule = {
               <div class="fz-readonly">
                 <strong>${this.esc(existing?.Nome_Servidor || user?.Nome_Completo || '')}</strong>
                 <small>${this.esc(existing ? (existing.Cargo_Servidor || this.CARGO_PADRAO) : (user?.Cargo_Funcao || this.CARGO_PADRAO))}${(existing ? existing.Matricula_Servidor : user?.Matricula) ? ' • mat. ' + this.esc(existing ? existing.Matricula_Servidor : user?.Matricula) : ''}</small>
-                <small> ${!existing ? '• <a href="#" onclick="Auth.showIdentification().then(()=>FiscalizacoesModule.showGeneralForm(null, \'' + this.esc(this.property.id) + '\'));return false;">trocar</a>' : ''}</small>
+                <small></small>
               </div>
             </div>
 
@@ -1107,7 +1125,8 @@ const FiscalizacoesModule = {
           <button type="button" class="btn btn-secondary" onclick="FiscalizacoesModule.open()">← Lista</button>
           ${editable ? `<button type="button" class="btn btn-secondary" onclick="FiscalizacoesModule.editGeneral()">✏️ Dados gerais e culturas</button>` : ''}
           <button type="button" class="btn btn-secondary" onclick="FiscalizacoesModule.printTerm()">🖨️ ${doc ? 'Termo de Fiscalização' : 'Prévia do termo'}</button>
-          ${!editable && this.status(f) !== 'CANCELADA' ? `<button type="button" class="btn btn-secondary" onclick="FiscalizacoesModule.reopen()">Reabrir para edição</button>` : ''}
+          ${!editable && this.status(f) === 'FINALIZADA' && this.canManage(f) ? `<button type="button" class="btn btn-secondary" onclick="FiscalizacoesModule.reopen()">Reabrir para edição</button>` : ''}
+          ${this.status(f) === 'EM_ANDAMENTO' && !this.canManage(f) ? `<span class="fz-muted">Em andamento por ${this.esc(f.Nome_Servidor || 'outro servidor')} — somente consulta.</span>` : ''}
         </div>
 
         ${this.sectionCultures(data, editable)}

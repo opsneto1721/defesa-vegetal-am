@@ -402,7 +402,7 @@ const HistoricoModule = {
             <h3>${this.esc(p.Nome_Propriedade)}</h3>
             <p>${this.esc(pr.Nome_Razao_Social || '')} • ${this.esc(p.Municipio || '')}${p.Comunidade_Localidade ? ' • ' + this.esc(p.Comunidade_Localidade) : ''}</p>
           </div>
-          <button type="button" class="btn btn-primary fz-small" onclick="FiscalizacoesModule.startFromProperty('${this.esc(p.id)}')">📋 Nova fiscalização</button>
+          ${Auth.can('fiscalizar') ? `<button type="button" class="btn btn-primary fz-small" onclick="FiscalizacoesModule.startFromProperty('${this.esc(p.id)}')">📋 Nova fiscalização</button>` : ''}
         </div>
         <div class="summary-grid">
           <div><small>Fiscalizações</small><strong>${fiscs.length}</strong></div>

@@ -2642,6 +2642,7 @@ document
           <button
             class="btn btn-secondary"
             type="button"
+            ${Auth.can('fiscalizar') ? '' : 'hidden'}
             onclick="FiscalizacoesModule.startFromProperty('${this.escapeHTML(property.id)}')"
           >
             📋 Nova fiscalização
