@@ -2260,8 +2260,18 @@ const FiscalizacoesModule = {
     const parts = [];
     const programs = this.selectedPrograms().map(id => this.cat.programas.get(id)).filter(Boolean);
 
-    parts.push(`${this.label(this.TIPOS_ACAO, f.Tipo_Acao)}${programs.length ? ' no âmbito do(s) programa(s) ' + this.joinPt(programs.map(p => this.programLabel(p))) : ''}${f.Finalidade ? ', com a finalidade de ' + f.Finalidade.replace(/\.$/, '') : ''}.`);
+    const evaluated = data.occs.filter(o => o.Resultado_Avaliacao && o.Resultado_Avaliacao !== 'NAO_AVALIADA');
+    const detected = evaluated.filter(o => o.Resultado_Avaliacao === 'DETECTADA');
+    const suspect = evaluated.filter(o => o.Resultado_Avaliacao === 'SUSPEITA');
+    const negatives = evaluated.filter(o => o.Resultado_Avaliacao === 'NAO_DETECTADA');
+    const situacao = this.val('fzSituacao') || f.Situacao_Fitossanitaria || this.suggestSituation(data);
 
+    /* 1. Situação fitossanitária */
+    if (situacao === 'COM_OCORRENCIA') parts.push('Situação fitossanitária: ocorrência de praga confirmada no momento da fiscalização.');
+    else if (situacao === 'SUSPEITA') parts.push('Situação fitossanitária: suspeita de ocorrência de praga, aguardando diagnóstico.');
+    else if (evaluated.length) parts.push('Situação fitossanitária: sem ocorrência das pragas avaliadas no momento da fiscalização.');
+
+    /* 2. Culturas inspecionadas */
     if (data.cults.length) {
       parts.push('Foram inspecionadas as culturas de ' + this.joinPt(data.cults.map(c => {
         const extra = [
@@ -2272,11 +2282,8 @@ const FiscalizacoesModule = {
       })) + '.');
     }
 
-    const evaluated = data.occs.filter(o => o.Resultado_Avaliacao && o.Resultado_Avaliacao !== 'NAO_AVALIADA');
-    const positives = evaluated.filter(o => o.Resultado_Avaliacao === 'DETECTADA' || o.Resultado_Avaliacao === 'SUSPEITA');
-    const negatives = evaluated.filter(o => o.Resultado_Avaliacao === 'NAO_DETECTADA');
-
-    positives.forEach(o => {
+    /* 3. Pragas: detectadas, suspeitas e não detectadas */
+    [...detected, ...suspect].forEach(o => {
       const det = [
         o.Nivel_Infestacao ? 'nível de infestação ' + this.label(this.NIVEIS, o.Nivel_Infestacao).toLowerCase() : '',
         o.Incidencia_Percentual !== '' && o.Incidencia_Percentual != null ? 'incidência estimada de ' + this.fmtNum(o.Incidencia_Percentual) + '%' : '',
@@ -2289,6 +2296,7 @@ const FiscalizacoesModule = {
       parts.push('Não foram detectados sinais ou sintomas de ' + this.joinPt(negatives.map(o => `${o.Nome_Praga} (${o.Nome_Cultura_Local})`)) + '.');
     }
 
+    /* 4. Amostras e providências */
     if (data.samples.length) {
       parts.push(`Foram coletadas ${data.samples.length} amostra(s) para análise laboratorial: ` + this.joinPt(data.samples.map(s =>
         `${s.Identificacao_Amostra}${s.Numero_Lacre ? ' (lacre ' + s.Numero_Lacre + ')' : ''} — ${s.Tipo_Material.toLowerCase()}${s.Nome_Cultura_Local ? ' de ' + s.Nome_Cultura_Local.toLowerCase() : ''}`)) + '.');
@@ -2298,9 +2306,8 @@ const FiscalizacoesModule = {
       parts.push(`Providência: ${this.label(this.PROVIDENCIAS, a.Tipo_Providencia)}${a.Numero_Documento ? ' nº ' + a.Numero_Documento : ''} — ${a.Descricao.replace(/\.$/, '')}${a.Prazo ? ', com prazo até ' + this.formatDate(a.Prazo) : ''}.`);
     });
 
-    if (!positives.length && evaluated.length) {
-      parts.push('Situação fitossanitária: sem ocorrência das pragas avaliadas no momento da fiscalização.');
-    }
+    /* 5. Programa / tipo de ação e finalidade */
+    parts.push(`${this.label(this.TIPOS_ACAO, f.Tipo_Acao)}${programs.length ? ' no âmbito do(s) programa(s) ' + this.joinPt(programs.map(p => this.programLabel(p))) : ''}${f.Finalidade ? ', com a finalidade de ' + f.Finalidade.replace(/\.$/, '') : ''}.`);
 
     return parts.join(' ');
   },
@@ -2880,7 +2887,8 @@ const FiscalizacoesModule = {
         local: (p.Municipio || f.Municipio || '') + '/AM',
         assinatura: respImg ? { image: respImg } : (respStatus && respStatus !== 'ASSINADO' ? { status: respStatus } : null),
         nome: f.Responsavel_Presente || '',
-        qualificacao: this.label(this.VINCULOS, f.Vinculo_Responsavel) + (f.CPF_Responsavel ? ' — CPF ' + this.formatDoc(f.CPF_Responsavel) : '')
+        qualificacao: this.label(this.VINCULOS, f.Vinculo_Responsavel) + (f.CPF_Responsavel ? ' — CPF ' + this.formatDoc(f.CPF_Responsavel) : ''),
+        detalhes: [this.label(this.VINCULOS, f.Vinculo_Responsavel), f.CPF_Responsavel ? 'CPF ' + this.formatDoc(f.CPF_Responsavel) : '']
       },
       entrega: this.deliveryText(doc || { Forma_Entrega_Via: this.val('fzEntrega') || f.Forma_Entrega_Via, Contato_Entrega_Via: this.val('fzEntregaContato') || f.Contato_Entrega_Via }),
       servidor: {
@@ -2888,6 +2896,7 @@ const FiscalizacoesModule = {
         matricula: f.Matricula_Servidor || '',
         cargo: f.Cargo_Servidor || (user && user.Nome_Completo === f.Nome_Servidor ? user.Cargo_Funcao : '') || this.CARGO_PADRAO,
         equipe: this.teamNames(f),
+        equipeLista: this.getTeam(f).map(m => ({ nome: m.Nome_Completo, cargo: m.Cargo_Funcao || '', matricula: m.Matricula || '' })),
         assinatura: fiscalImg ? { image: fiscalImg } : (electronic ? { electronic } : null)
       },
       anexo: {

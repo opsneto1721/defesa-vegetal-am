@@ -84,16 +84,28 @@ const TermoFiscalizacao = {
       .gap { width: 3mm; }
       .sig { text-align: center; margin-top: 1mm; }
       .sig img { max-height: 12mm; max-width: 62mm; display: block; margin: 0 auto -1.5mm; mix-blend-mode: multiply; position: relative; }
-      .sig .line { border-top: 1px solid #1b2430; margin: 0 4mm; padding-top: 0.8mm; font-size: 8pt; color: #4a5866; }
+      .sig .sig-top { height: 13mm; display: flex; align-items: flex-end; justify-content: center; }
+      .sig .line { border-top: 1px solid #1b2430; margin: 0 4mm; padding-top: 0.8mm; font-size: 8pt; color: #4a5866; text-align: center; line-height: 1.35; }
       .sig .line b { color: #1b2430; font-size: 8.6pt; }
-      .sig .blank { height: 9mm; }
-      .elec { border: 1px solid #1f8a4c; background: #eef7f1; color: #17673a; border-radius: 1.2mm; font-size: 7pt; padding: 1.2mm; margin: 0 6mm 1mm; text-align: center; line-height: 1.3; }
-      .refused { color: #b42318; font-size: 8pt; font-weight: 700; height: 11mm; padding-top: 6mm; }
+      .sig .blank { height: 0; }
+      .elec { border: 1px solid #1f8a4c; background: #eef7f1; color: #17673a; border-radius: 1.2mm; font-size: 7pt; padding: 1.2mm; margin: 0 6mm 1mm; text-align: center; line-height: 1.3; width: 100%; }
+      .refused { color: #b42318; font-size: 8pt; font-weight: 700; padding-bottom: 1mm; }
       .wit td { padding: 0.5mm 0; font-size: 8pt; color: #4a5866; }
       .wit b { color: #1b2430; }
-      .recv { font-size: 8pt; color: #4a5866; margin: 1mm 0; }
+      .recv { font-size: 8pt; color: #4a5866; margin: 1mm 0; min-height: 7mm; }
       .via { font-size: 7.8pt; color: #1b2430; margin-top: 1.2mm; padding-top: 1mm; border-top: 1px dashed #d5dde5; }
       .team { font-size: 7.4pt; color: #4a5866; margin-top: 1mm; text-align: center; }
+      .wit-na { margin-top: 2.2mm; font-size: 8pt; color: #4a5866; padding: 1.6mm 2.5mm; }
+      .wit-box { margin-top: 2.2mm; }
+      .team-box { margin-top: 2.2mm; padding: 1.6mm 2.5mm; font-size: 8pt; }
+      .team-list { margin-top: 0.8mm; }
+      .team-list td { padding: 0.4mm 2mm 0.4mm 0; font-size: 8pt; color: #4a5866; }
+      .team-list td b { color: #1b2430; }
+      .na-inline { color: #6b7886; font-style: italic; }
+      .anx-head { border-bottom: 2px solid #12335f; margin-bottom: 2mm; padding-bottom: 1.5mm; }
+      .signs td { height: 1px; }
+      .signs .box { min-height: 33mm; height: 100%; }
+      .wit-row td { vertical-align: top; }
       .na { font-size: 8pt; color: #6b7886; font-style: italic; padding: 8mm 0; text-align: center; }
 
       /* Rodapé */
@@ -130,7 +142,8 @@ const TermoFiscalizacao = {
     else if (s && s.status === 'RECUSADO') top = '<div class="refused">Recusou-se a assinar</div>';
     else if (s && s.status === 'AUSENTE') top = '<div class="refused">Responsável ausente</div>';
     else top = '<div class="blank"></div>';
-    return `<div class="sig">${top}<div class="line">${name ? `<b>${this.esc(name)}</b><br>` : ''}${this.esc(role)}</div></div>`;
+    const details = [].concat(role || []).filter(Boolean).map(l => this.esc(l)).join('<br>');
+    return `<div class="sig"><div class="sig-top">${top}</div><div class="line">${name ? `<b>${this.esc(name)}</b><br>` : ''}${details}</div></div>`;
   },
 
   witness(w, index) {
@@ -198,8 +211,9 @@ const TermoFiscalizacao = {
         <div class="sec">
           <div class="sec-h"><span class="n">1</span>Identificação</div>
           <table class="fields">
-            <tr>${field('Nome', id.nome, 'style="width:46%"')}${field('CPF', id.cpf, 'style="width:22%"')}${field('Atividade', id.atividade, 'style="width:32%"')}</tr>
-            <tr>${field('Empresa / Nome fantasia', id.empresa)}${field('CNPJ', id.cnpj)}${field('Atividade', id.atividadeEmpresa)}</tr>
+            ${id.empresa
+              ? `<tr>${field('Empresa (razão social / nome fantasia)', id.empresa, 'style="width:46%"')}${field('CNPJ', id.cnpj, 'style="width:22%"')}${field('Atividade', id.atividadeEmpresa, 'style="width:32%"')}</tr>`
+              : `<tr>${field('Nome', id.nome, 'style="width:46%"')}${field('CPF', id.cpf, 'style="width:22%"')}${field('Atividade', id.atividade, 'style="width:32%"')}</tr>`}
             <tr>${field('Endereço', id.endereco, 'colspan="3"')}</tr>
             <tr>${field('Município', id.municipio)}${field('UF', id.uf)}${field('Telefone', id.telefone)}</tr>
             <tr>${field('Coordenadas geográficas (lat / long)', id.lat || id.lng ? `${id.lat} / ${id.lng}` : '', 'colspan="3"')}</tr>
@@ -225,32 +239,40 @@ const TermoFiscalizacao = {
         <table class="signs"><tr>
           <td style="width:50%">
             <div class="box">
-              <div class="box-h"><span class="n" style="display:inline-block;width:4.2mm;height:4.2mm;line-height:4.2mm;border-radius:50%;background:#12335f;color:#fff;text-align:center;font-size:7pt;margin-right:1mm">4</span>Testemunhas</div>
-              <div class="box-sub">Necessárias apenas quando o autuado se negar a assinar ou estiver ausente.</div>
-              ${ctx.testemunhasAplicaveis === false
-                ? '<div class="na">Não se aplica — o fiscalizado assinou o termo.</div>'
-                : this.witness(wits[0], 1) + this.witness(wits[1], 2)}
+              <div class="box-h">Ciência do fiscalizado</div>
+              <div class="recv">Declaro ciência do inteiro teor deste Termo de Fiscalização${r.quando ? ` — ${e(r.quando)}${r.local ? ', ' + e(r.local) : ''}` : ''}.</div>
+              ${this.signature(r.assinatura, r.nome, r.detalhes || [r.qualificacao])}
+              <div class="via"><b>2ª via:</b> ${ctx.entrega ? e(ctx.entrega) : '____________________________________________'}</div>
             </div>
           </td>
           <td class="gap"></td>
           <td style="width:50%">
             <div class="box">
-              <div class="box-h">Ciência do fiscalizado</div>
-              <div class="recv">Declaro ciência do inteiro teor deste Termo de Fiscalização${r.quando ? ` — ${e(r.quando)}${r.local ? ', ' + e(r.local) : ''}` : ''}.</div>
-              ${this.signature(r.assinatura, r.nome, r.qualificacao || 'Assinatura')}
-              <div class="via"><b>2ª via:</b> ${ctx.entrega ? e(ctx.entrega) : '____________________________________________'}</div>
-            </div>
-            <div class="box" style="margin-top:2.5mm">
               <div class="box-h">Servidor da ADAF</div>
-              ${this.signature(sv.assinatura, sv.nome, [sv.cargo, sv.matricula ? 'Matrícula ' + sv.matricula : ''].filter(Boolean).join(' — ') || 'Assinatura e identificação')}
-              ${sv.equipe ? `<div class="team"><b>Equipe:</b> ${e(sv.equipe)}</div>` : ''}
+              <div class="recv">Responsável pela fiscalização e pela emissão deste Termo.</div>
+              ${this.signature(sv.assinatura, sv.nome, [sv.cargo, sv.matricula ? 'Matrícula ' + sv.matricula : ''])}
             </div>
           </td>
         </tr></table>
 
-        <table class="vias"><tr>
-          <td><span>1ª via: Interessado</span></td><td><span>2ª via: ADAF Central</span></td><td><span>3ª via: Unidade Local</span></td>
-        </tr></table>
+        <div class="box team-box">
+          <span class="box-h">Servidores que também participaram da fiscalização:</span>
+          ${(sv.equipeLista || []).length
+            ? `<table class="team-list">${sv.equipeLista.map(m => `<tr><td><b>${e(m.nome)}</b></td><td>${e(m.cargo || '')}</td><td>${m.matricula ? 'Matrícula ' + e(m.matricula) : ''}</td></tr>`).join('')}</table>`
+            : ' <span class="na-inline">nenhum.</span>'}
+        </div>
+
+        ${ctx.testemunhasAplicaveis === false
+          ? `<div class="box wit-na"><span class="box-h">4 – Testemunhas:</span> não se aplica — o fiscalizado assinou o termo.</div>`
+          : `<div class="box wit-box">
+              <div class="box-h"><span class="n" style="display:inline-block;width:4.2mm;height:4.2mm;line-height:4.2mm;border-radius:50%;background:#12335f;color:#fff;text-align:center;font-size:7pt;margin-right:1mm">4</span>Testemunhas
+                <span class="box-sub" style="text-transform:none;letter-spacing:0;font-weight:400"> — necessárias quando o autuado se negar a assinar ou estiver ausente</span></div>
+              <table class="wit-row"><tr>
+                <td style="width:50%">${this.witness(wits[0], 1)}</td>
+                <td class="gap"></td>
+                <td style="width:50%">${this.witness(wits[1], 2)}</td>
+              </tr></table>
+            </div>`}
 
         <table class="foot"><tr>
           <td style="width:62%">
@@ -284,7 +306,6 @@ const TermoFiscalizacao = {
       anexo = `
         <div class="page last">
           ${ctx.preview ? '<div class="draft">PRÉVIA</div>' : ''}
-          ${header}
           <table class="anx-head"><tr>
             <td class="anx-title">ANEXO I — TERMO DE FISCALIZAÇÃO N° ${e(numeroTexto || '(a definir)')}</td>
             <td class="anx-sub">${e(ax.titulo || '')}</td>
