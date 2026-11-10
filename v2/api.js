@@ -46,7 +46,7 @@ function askApiToken() {
    REQUISIÇÃO À API
 ========================================================= */
 
-async function apiRequest(action, payload = {}) {
+async function apiRequest(action, payload = {}, options = {}) {
   if (!apiIsConfigured()) {
     throw new Error('API_V2_NAO_CONFIGURADA');
   }
@@ -55,7 +55,7 @@ async function apiRequest(action, payload = {}) {
 
   const timeout = setTimeout(
     () => controller.abort(),
-    APP_CONFIG.REQUEST_TIMEOUT
+    options.timeout || APP_CONFIG.REQUEST_TIMEOUT
   );
 
   try {

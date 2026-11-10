@@ -39,6 +39,7 @@ const App = {
 
       /* Voltar à tela anterior (botões e gesto do celular) */
       Nav.install();
+      setTimeout(() => AssinaturaRelatorios.notifyPending(), 4000);
       await this.loadCultureCatalogCache();
       window.addEventListener('catalogs-updated', () => this.loadCultureCatalogCache());
 

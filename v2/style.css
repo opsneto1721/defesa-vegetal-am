@@ -3350,3 +3350,112 @@ body.auth-open {
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* =========================================================
+   RELATÓRIO DE ATIVIDADES — ASSINATURAS
+========================================================= */
+.ra-section {
+  margin-top: 28px;
+}
+
+.ra-title {
+  font-size: 15px;
+  margin: 18px 0 10px;
+  color: var(--text);
+}
+
+.ra-list {
+  display: grid;
+  gap: 10px;
+}
+
+.ra-parecer {
+  background: #f6f8fa;
+  border-left: 3px solid #b54708;
+  padding: 6px 10px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+}
+
+.ra-others {
+  margin-top: 18px;
+}
+
+.ra-others summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 10px;
+}
+
+.ra-sig {
+  min-height: 70px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.ra-sig img {
+  max-height: 70px;
+  max-width: 100%;
+}
+
+.ra-alert {
+  background: #fff4e5;
+  border: 1px solid #f5c58a;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.ra-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ra-frame-wrap {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: auto;
+  height: 380px;
+  background: #eef1f4;
+  margin-bottom: 8px;
+}
+
+.ra-frame {
+  width: 210mm;
+  height: 1600px;
+  border: 0;
+  background: #fff;
+  display: block;
+}
+
+.rp-note {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.hs-section-title {
+  font-size: 16px;
+  margin: 0 0 4px;
+}
+
+.ra-prev {
+  margin-top: 4px;
+}
+
+#raSigBtn {
+  width: auto;
+}
+
+.ra-parecer-ok {
+  border-left-color: #1f8a4c;
+}
