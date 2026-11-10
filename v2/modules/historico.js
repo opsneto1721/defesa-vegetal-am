@@ -1,3 +1,4 @@
+/* Defesa Vegetal AM — versão 2.0.0-alpha.15 */
 /* =========================================================
    DEFESA VEGETAL AM - V2
    MÓDULO: HISTÓRICO E DOCUMENTOS
@@ -267,6 +268,7 @@ const HistoricoModule = {
     if (me && !servers.has(me)) servers.set(me, Auth.currentServerName());
     const serverOpts = [...servers.entries()].sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'));
 
+    const propMuns = [...new Set((await dbGetAll('propriedades')).filter(p => p.Excluido !== 'SIM' && p.Status !== 'INATIVO').map(p => p.Municipio).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
     const pestSelect = id => `<select id="${id}"><option value="">Todas as pragas</option>${pestOpts.map(([k, n]) => `<option value="${this.esc(k)}">${this.esc(n)}</option>`).join('')}</select>`;
     const munSelect = id => `<select id="${id}"><option value="">Todos os municípios</option>${muns.map(m => `<option>${this.esc(m)}</option>`).join('')}</select>`;
 
@@ -299,9 +301,25 @@ const HistoricoModule = {
           <p>Prestação de contas: fiscalizações (responsável e equipe), termos, área, amostras, cadastros e municípios atendidos, com campo para visto da chefia.</p>
           <label>Mês<input type="month" id="rpMesS" value="${ym}"></label>
           <label>Servidor<select id="rpServ">${serverOpts.map(([id, n]) => `<option value="${this.esc(id)}" ${id === me ? 'selected' : ''}>${this.esc(n)}</option>`).join('')}</select></label>
-          <button type="button" class="btn btn-primary" id="rpBtnS">Gerar relatório</button>
+          <button type="button" class="btn btn-secondary" id="rpBtnS">👁️ Visualizar</button>
+          <button type="button" class="btn btn-primary" id="rpBtnSign">✍️ Assinar e enviar à chefia</button>
+          <small class="rp-note" id="rpSignNote" hidden>Só o próprio servidor assina o seu relatório.</small>
         </section>
-      </div>`;
+
+        <section class="rp-card">
+          <div class="rp-icon">🗺️</div>
+          <h3>Cobertura anual de propriedades</h3>
+          <p>Controle da gerência: cada propriedade ativa deve ser visitada uma vez por ano. Mostra o realizado mês a mês contra a meta, a cobertura por município e a lista do que falta visitar.</p>
+          <label>Ano<select id="rpAnoC">${years.map(y => `<option>${y}</option>`).join('')}</select></label>
+          <label>Município<select id="rpMunC"><option value="">Todo o estado</option>${propMuns.map(m => `<option>${this.esc(m)}</option>`).join('')}</select></label>
+          <button type="button" class="btn btn-primary" id="rpBtnC">Gerar relatório</button>
+        </section>
+      </div>
+
+      <section class="ra-section">
+        <h3 class="hs-section-title">✍️ Assinaturas do relatório de atividades</h3>
+        <div id="raBox"></div>
+      </section>`;
 
     const ymParts = id => {
       const [y, m] = this.val(id).split('-').map(Number);
@@ -317,6 +335,23 @@ const HistoricoModule = {
     document.getElementById('rpBtnS').onclick = () => {
       if (!this.val('rpMesS') || !this.val('rpServ')) return App.showMessage('Escolha o mês e o servidor.', 'warning');
       Relatorios.activityReport({ servidor: this.val('rpServ'), ...ymParts('rpMesS') });
+    };
+    const syncSign = () => {
+      const mine = this.val('rpServ') === String(me);
+      document.getElementById('rpBtnSign').hidden = !mine;
+      document.getElementById('rpSignNote').hidden = mine;
+    };
+    document.getElementById('rpServ').addEventListener('change', syncSign);
+    syncSign();
+    document.getElementById('rpBtnSign').onclick = () => {
+      if (!this.val('rpMesS')) return App.showMessage('Escolha o mês.', 'warning');
+      if (!navigator.onLine) return App.showMessage('Sem internet. Conecte-se para enviar à chefia.', 'warning');
+      const { ano, mes } = ymParts('rpMesS');
+      AssinaturaRelatorios.openSubmit(ano, mes);
+    };
+    AssinaturaRelatorios.render('raBox');
+    document.getElementById('rpBtnC').onclick = () => {
+      Relatorios.coverageReport({ ano: Number(this.val('rpAnoC')), municipio: this.val('rpMunC') });
     };
   },
 
