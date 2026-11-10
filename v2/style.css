@@ -3270,3 +3270,27 @@ body.auth-open {
 .rp-card .btn {
   margin-top: 4px;
 }
+
+
+/* Botões Voltar + Início lado a lado */
+.nav-btns {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.module-header .nav-btns {
+  margin-top: 4px;
+}
+
+.nav-btns .btn {
+  width: auto;
+  margin: 0;
+  padding: 9px 14px;
+  font-size: 14px;
+}
+
+.module-header > .nav-btns > .btn {
+  margin-top: 0;
+}

@@ -54,6 +54,8 @@ const Nav = {
 
     this.track(DashboardModule, 'open');
     this.track(ServidoresModule, 'open');
+
+    this.observeBackButtons();
   },
 
   track(obj, method, opts = {}) {
@@ -123,6 +125,36 @@ const Nav = {
       this.restoring = false;
     }
     window.scrollTo({ top: 0 });
+  },
+
+  /*
+    Ao lado de todo botão "← Voltar", um botão "🏠 Início".
+    Observa a área principal, para valer também nas telas
+    redesenhadas sem troca de tela (ex.: salvar um item).
+  */
+  observeBackButtons() {
+    const main = document.querySelector('main');
+    if (!main) return;
+    const decorate = () => {
+      main.querySelectorAll('button').forEach(btn => {
+        if (btn.dataset.navDone || btn.closest('.nav-btns') || btn.closest('.fz-sheet')) return;
+        if (!/←\s*Voltar/.test(btn.textContent)) return;
+        btn.dataset.navDone = '1';
+        const wrap = document.createElement('span');
+        wrap.className = 'nav-btns';
+        btn.parentNode.insertBefore(wrap, btn);
+        wrap.appendChild(btn);
+        const home = document.createElement('button');
+        home.type = 'button';
+        home.className = 'btn btn-secondary nav-home';
+        home.textContent = '🏠 Início';
+        home.title = 'Voltar ao menu inicial';
+        home.onclick = () => App.showHome();
+        wrap.appendChild(home);
+      });
+    };
+    new MutationObserver(decorate).observe(main, { childList: true, subtree: true });
+    decorate();
   },
 
   /* Botão "← Voltar" das telas */
