@@ -1,3 +1,4 @@
+/* Defesa Vegetal AM — versão 2.0.0-alpha.15 */
 /* =========================================================
    DEFESA VEGETAL AM - V2
    MÓDULO: SERVIDORES (somente ADMINISTRADOR)
@@ -176,6 +177,11 @@ const ServidoresModule = {
               <option value="INATIVO" ${s.Status === 'INATIVO' ? 'selected' : ''}>Inativo (sem acesso)</option>
             </select>
             <small>Inativar encerra as sessões abertas. O histórico do servidor é preservado.</small></div>
+          <div class="field field-wide"><label for="svChefia">Chefia imediata (visto no relatório mensal)</label>
+            <select id="svChefia"><option value="">— escolher na hora de enviar —</option>${this.list
+              .filter(x => x.ID_Servidor !== id && x.Status !== 'INATIVO' && ['GERENTE', 'ADMINISTRADOR'].includes(x.Perfil_Acesso))
+              .map(x => `<option value="${this.esc(x.ID_Servidor)}" ${String(s.ID_Chefia_Imediata || '') === String(x.ID_Servidor) ? 'selected' : ''}>${this.esc(x.Nome_Completo)}</option>`).join('')}</select>
+            <small>Sugerida automaticamente quando o servidor envia o relatório de atividades.</small></div>
         </div>`,
       onSubmit: async () => {
         try {
@@ -189,6 +195,7 @@ const ServidoresModule = {
               Email_Institucional: this.val('svEmail'),
               Telefone: this.val('svTel'),
               Unidade_Lotacao: this.val('svLot'),
+              ID_Chefia_Imediata: this.val('svChefia'),
               Perfil_Acesso: isMe ? s.Perfil_Acesso : this.val('svPerfilSel'),
               Status: isMe ? 'ATIVO' : this.val('svStatusSel')
             }
