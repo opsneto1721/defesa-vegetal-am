@@ -36,6 +36,9 @@ const App = {
       /* Login obrigatório (sessão de 30 dias, funciona offline) */
       await Auth.requireLogin();
       Auth.renderBadge();
+
+      /* Voltar à tela anterior (botões e gesto do celular) */
+      Nav.install();
       await this.loadCultureCatalogCache();
       window.addEventListener('catalogs-updated', () => this.loadCultureCatalogCache());
 
