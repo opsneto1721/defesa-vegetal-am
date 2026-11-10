@@ -2752,7 +2752,8 @@ const FiscalizacoesModule = {
         .sigs{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:40px;text-align:center}
         .line{border-top:1px solid #000;padding-top:4px}
         ${this.signatureCss()}
-        @media print{button{display:none}body{margin:10mm}}
+        @page{size:A4;margin:0}
+        @media print{button{display:none}body{margin:0;padding:10mm 12mm;-webkit-box-decoration-break:clone;box-decoration-break:clone}}
       </style></head><body>
       <button onclick="print()" style="float:right;padding:8px 14px">Imprimir / salvar PDF</button>
       <div class="head">

@@ -25,10 +25,13 @@ const TermoFiscalizacao = {
 
   css() {
     return `
-      @page { size: A4; margin: 7mm 10mm; }
+      /* Margem zero: o navegador não tem onde imprimir endereço/data/título.
+         A margem do documento é feita pelo padding de .page (repetido em
+         cada folha com box-decoration-break). */
+      @page { size: A4; margin: 0; }
       * { box-sizing: border-box; }
       body { font-family: "Segoe UI", Roboto, Arial, Helvetica, sans-serif; color: #1b2430; font-size: 9.6pt; margin: 0; }
-      .page { width: 190mm; margin: 0 auto; page-break-after: always; position: relative; }
+      .page { width: 210mm; padding: 7mm 10mm; margin: 0 auto; page-break-after: always; position: relative; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
       .page.last { page-break-after: auto; }
       table { width: 100%; border-collapse: collapse; }
 
@@ -104,7 +107,11 @@ const TermoFiscalizacao = {
       .na-inline { color: #6b7886; font-style: italic; }
       .anx-head { border-bottom: 2px solid #12335f; margin-bottom: 2mm; padding-bottom: 1.5mm; }
       .signs td { height: 1px; }
-      .signs .box { min-height: 33mm; height: 100%; }
+      .signs .box { min-height: 30mm; height: 100%; }
+      .wit-box { padding-top: 1.2mm; padding-bottom: 1.2mm; }
+      .wit-box .sig .sig-top { height: 8mm; }
+      .wit-box .wit td { padding: 0.2mm 0; }
+      .wit-box .sig { margin-top: 0.5mm; }
       .wit-row td { vertical-align: top; }
       .na { font-size: 8pt; color: #6b7886; font-style: italic; padding: 8mm 0; text-align: center; }
 
@@ -179,6 +186,10 @@ const TermoFiscalizacao = {
     const hasAnexo = ctx.anexo && (ctx.anexo.secoes?.some(s => s.linhas.length) || ctx.anexo.fotos?.length);
     const numeroTexto = n.seq ? `${n.seq}-${n.ano}-${n.unidade}` : '';
 
+    /* Mais testemunhas/equipe = menos espaço: a descrição reduz a fonte antes */
+    const pressure = (ctx.testemunhasAplicaveis === false ? 0 : 160) + (sv.equipeLista || []).length * 60;
+    const descLen = String(a.descricao || '').length + pressure;
+    const descClass = descLen > 1500 ? 'xlong' : descLen > 950 ? 'long' : '';
     const field = (k, v, attrs = '') => `<td ${attrs}><span class="k">${k}</span><span class="v2">${e(v)}</span></td>`;
     const header = `
       <table class="hdr"><tr>
@@ -222,7 +233,7 @@ const TermoFiscalizacao = {
 
         <div class="sec">
           <div class="sec-h"><span class="n">2</span>Descrição da ação</div>
-          <div class="desc ${String(a.descricao || '').length > 1500 ? 'xlong' : String(a.descricao || '').length > 950 ? 'long' : ''}">
+          <div class="desc ${descClass}">
             <span class="lead">Em <span class="u">${e(a.data)}</span> às <span class="u">${e(a.hora)}</span> hora(s), ao realizar fiscalização no(a)
             <span class="u">${e(a.local)}</span>, constatei:</span><br>
             ${this.text(a.descricao)}
