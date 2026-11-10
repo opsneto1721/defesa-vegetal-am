@@ -1,3 +1,4 @@
+/* Defesa Vegetal AM — versão 2.0.0-alpha.15 */
 /* =========================================================
    DEFESA VEGETAL AM - V2
    RELATÓRIOS
@@ -5,6 +6,8 @@
    - Por praga: mensal e anual (detecções, suspeitas,
      avaliações sem detecção, municípios, amostras, focos)
    - Atividade por servidor: mensal (prestação de contas)
+   - Cobertura anual: cada propriedade ativa deve receber
+     ao menos uma fiscalização finalizada por ano
 
    Usa os dados sincronizados no aparelho (todos os
    aparelhos, depois de sincronizar). Gera um documento A4
@@ -104,8 +107,9 @@ const Relatorios = {
       h1 { font-size: 15pt; color: #12335f; margin: 0; }
       .sub { color: #4a5866; font-size: 9pt; margin: 1mm 0 3mm; }
       h2 { font-size: 8.8pt; color: #12335f; text-transform: uppercase; letter-spacing: .06em; margin: 5mm 0 1.6mm; padding-bottom: 1mm; border-bottom: 1px solid #12335f; }
-      .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2mm; }
-      .kpi { border: 1px solid #d5dde5; border-radius: 1.5mm; padding: 2mm 2.5mm; }
+      .kpis { font-size: 0; }
+      .kpi { display: inline-block; vertical-align: top; width: 23.8%; margin: 0 1.6% 2mm 0; font-size: 9.2pt; border: 1px solid #d5dde5; border-radius: 1.5mm; padding: 2mm 2.5mm; }
+      .kpi:nth-child(4n) { margin-right: 0; }
       .kpi span { display: block; font-size: 6.8pt; text-transform: uppercase; letter-spacing: .06em; color: #6b7886; }
       .kpi b { font-size: 15pt; color: #12335f; }
       .kpi small { display: block; color: #4a5866; font-size: 7.4pt; }
@@ -125,18 +129,24 @@ const Relatorios = {
       .signs img { max-height: 13mm; max-width: 60mm; mix-blend-mode: multiply; }
       .line { border-top: 1px solid #1b2430; padding-top: 1mm; font-size: 8pt; color: #4a5866; }
       .line b { color: #1b2430; }
-      .foot { margin-top: 6mm; border-top: 1px solid #d5dde5; padding-top: 1.5mm; font-size: 6.8pt; color: #6b7886; display: flex; justify-content: space-between; }
+      .foot { margin-top: 6mm; border-top: 1px solid #d5dde5; padding-top: 1.5mm; font-size: 6.8pt; color: #6b7886; }
+      .foot span + span { float: right; }
+      .sigimg { height: 15mm; text-align: center; }
+      .sigimg img { max-height: 15mm; max-width: 62mm; }
+      .when { font-size: 7.6pt; color: #4a5866; margin-top: 1mm; }
+      .obs { border: 1px solid #d5dde5; border-radius: 1.5mm; padding: 2mm 2.5mm; white-space: pre-wrap; }
+      .parecer { margin-top: 4mm; border-left: 1mm solid #12335f; padding: 1.5mm 3mm; background: #f6f8fa; font-size: 8.4pt; }
       .noprint { position: fixed; top: 8px; right: 8px; padding: 8px 14px; border: 0; border-radius: 8px; background: #12335f; color: #fff; font-size: 14px; }
       @media print { .noprint { display: none; } }
     `;
   },
 
-  page(title, subtitle, body) {
+  page(title, subtitle, body, { printButton = true } = {}) {
     const now = new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).replace(', ', ' ');
     const user = Auth.getUser();
     return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
       <title>${this.esc(title)}</title><style>${this.css()}</style></head><body>
-      <button class="noprint" onclick="print()">Imprimir / salvar PDF</button>
+      ${printButton ? '<button class="noprint" onclick="print()">Imprimir / salvar PDF</button>' : ''}
       <div class="doc">
         <table class="hdr"><tr>
           <td style="width:18mm"><img class="b" src="${TERMO_ASSETS.brasaoAM}" alt=""></td>
@@ -322,6 +332,16 @@ const Relatorios = {
   async activityReport({ servidor, ano, mes }) {
     const win = this.prepareWindow();
     if (!win) return;
+    this.open(await this.buildActivityHtml({ servidor, ano, mes }), win);
+  },
+
+  /*
+    sign (opcional) — versão para assinatura:
+    { cargoServidor, observacoes, chefia: {Nome_Completo, Cargo, Matricula},
+      servidorAssinatura: dataURL (prévia) | '' (marcador para o servidor),
+      dataEnvio, printButton }
+  */
+  async buildActivityHtml({ servidor, ano, mes }, sign = null) {
     const d = await this.loadData();
     const e = v => this.esc(v);
     const sv = d.servidores.find(s => String(s.ID_Servidor) === String(servidor)) ||
@@ -399,12 +419,187 @@ const Relatorios = {
         { empty: 'Nenhum cadastro no mês.' })}
 
       <div class="note">Fiscalizações canceladas aparecem na lista, mas não entram nos totais.</div>
+      ${sign && sign.observacoes ? `<h2>Observações do servidor</h2><div class="obs">${e(sign.observacoes)}</div>` : ''}
+      ${this.activitySigns(sv, sign)}`;
 
-      <table class="signs"><tr>
-        <td><div class="line"><b>${e(sv.Nome_Completo)}</b><br>${e(sv.Cargo_Funcao || '')}${sv.Matricula ? ' — Matrícula ' + e(sv.Matricula) : ''}</div></td>
-        <td><div class="line"><b>Chefia imediata</b><br>Visto / data</div></td>
-      </tr></table>`;
+    return this.page('Relatório mensal de atividades', `${this.MESES[mes]} de ${ano} — prestação de contas`, body,
+      { printButton: !sign || sign.printButton !== false });
+  },
 
-    this.open(this.page('Relatório mensal de atividades', `${this.MESES[mes]} de ${ano} — prestação de contas`, body), win);
+  /* Quadro de assinaturas (servidor e chefia imediata) */
+  activitySigns(sv, sign) {
+    const e = v => this.esc(v);
+    if (!sign) {
+      return `<table class="signs"><tr>
+        <td><div class="sigimg"></div><div class="line"><b>${e(sv.Nome_Completo)}</b><br>${e(sv.Cargo_Funcao || '')}${sv.Matricula ? ' — Matrícula ' + e(sv.Matricula) : ''}</div></td>
+        <td><div class="sigimg"></div><div class="line"><b>Chefia imediata</b><br>Visto / data</div></td>
+      </tr></table>
+      <div class="note">Rascunho sem assinaturas. Para assinar e enviar à chefia, use "Assinar e enviar" na aba Relatórios.</div>`;
+    }
+    const c = sign.chefia || {};
+    const sigS = sign.servidorAssinatura ? `<img src="${sign.servidorAssinatura}" alt="">` : '<!--SERVIDOR_ASSINATURA-->';
+    const quando = (sign.dataEnvio ? new Date(sign.dataEnvio) : new Date()).toLocaleDateString('pt-BR');
+    return `<table class="signs"><tr>
+        <td><div class="sigimg">${sigS}</div>
+          <div class="line"><b>${e(sv.Nome_Completo)}</b><br>${e(sign.cargoServidor || sv.Cargo_Funcao || '')}${sv.Matricula ? ' — Matrícula ' + e(sv.Matricula) : ''}</div>
+          <div class="when">Assinado em ${quando}</div></td>
+        <td><div class="sigimg"><!--CHEFIA_ASSINATURA--></div>
+          <div class="line"><b>${e(c.Nome_Completo || 'Chefia imediata')}</b><br><span class="cargo-chefia">${e(c.Cargo || 'Chefia imediata')}</span>${c.Matricula ? ' — Matrícula ' + e(c.Matricula) : ''}</div>
+          <div class="when"><!--CHEFIA_DATA--></div></td>
+      </tr></table><!--CHEFIA_PARECER-->`;
+  },
+
+  /* =======================================================
+     COBERTURA ANUAL (cada propriedade 1 visita por ano)
+     Usada pelo relatório e pelo mapa do Dashboard.
+  ======================================================= */
+
+  normMun(name) {
+    return String(name || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .toLowerCase().replace(/[^a-z0-9]/g, '');
+  },
+
+  /*
+    propriedades: todas; fiscalizacoes: ativas (sem excluídas).
+    Visita = fiscalização FINALIZADA com data de início no ano.
+  */
+  coverage({ propriedades, fiscalizacoes, produtores = [] }, ano, { municipio = '' } = {}) {
+    const props = propriedades.filter(p => p.Excluido !== 'SIM' && p.Status !== 'INATIVO' &&
+      (!municipio || p.Municipio === municipio));
+    const ids = new Set(props.map(p => p.id));
+    const fin = fiscalizacoes.filter(f => f.Excluido !== 'SIM' && ids.has(f.ID_Propriedade_Local) && this.status(f) === 'FINALIZADA');
+    const now = new Date();
+    const atual = ano === now.getFullYear();
+    const ultimoMes = atual ? now.getMonth() : ano < now.getFullYear() ? 11 : -1;
+
+    const first = new Map();      // propriedade -> data da 1ª visita no ano
+    const last = new Map();       // propriedade -> última visita (qualquer ano)
+    const visitsYear = new Map(); // propriedade -> nº de visitas no ano
+    const andamento = new Set();
+    fiscalizacoes.filter(f => f.Excluido !== 'SIM' && ids.has(f.ID_Propriedade_Local) && this.status(f) === 'EM_ANDAMENTO' && this.inYear(f.Data_Hora_Inicio, ano))
+      .forEach(f => andamento.add(f.ID_Propriedade_Local));
+    fin.forEach(f => {
+      const d = this.dateOf(f.Data_Hora_Inicio);
+      if (!d) return;
+      const pid = f.ID_Propriedade_Local;
+      if (!last.has(pid) || d > last.get(pid)) last.set(pid, d);
+      if (d.getFullYear() !== ano) return;
+      visitsYear.set(pid, (visitsYear.get(pid) || 0) + 1);
+      if (!first.has(pid) || d < first.get(pid)) first.set(pid, d);
+    });
+
+    const total = props.length;
+    const meses = this.MESES.map((nome, m) => ({ nome, novas: 0, fiscalizacoes: 0, acumulado: 0, meta: Math.round(total * (m + 1) / 12) }));
+    first.forEach(d => { meses[d.getMonth()].novas++; });
+    fin.forEach(f => { const d = this.dateOf(f.Data_Hora_Inicio); if (d && d.getFullYear() === ano) meses[d.getMonth()].fiscalizacoes++; });
+    let acc = 0;
+    meses.forEach(m => { acc += m.novas; m.acumulado = acc; });
+
+    const prodName = new Map(produtores.map(p => [p.id, p.Nome_Razao_Social]));
+    const byMun = new Map();
+    props.forEach(p => {
+      const k = p.Municipio || 'Não informado';
+      if (!byMun.has(k)) byMun.set(k, { municipio: k, total: 0, visitadas: 0 });
+      const r = byMun.get(k);
+      r.total++;
+      if (first.has(p.id)) r.visitadas++;
+    });
+    const municipios = [...byMun.values()].map(r => ({ ...r, faltam: r.total - r.visitadas, pct: r.total ? r.visitadas / r.total : 0 }));
+
+    const visitadas = first.size;
+    const faltam = total - visitadas;
+    const metaAteMes = ultimoMes >= 0 ? Math.round(total * (ultimoMes + 1) / 12) : 0;
+    const mesesRestantes = atual ? 12 - now.getMonth() : ano > now.getFullYear() ? 12 : 0;
+    const pendentes = props.filter(p => !first.has(p.id)).map(p => {
+      const l = last.get(p.id);
+      return {
+        p, produtor: prodName.get(p.ID_Produtor_Local) || '',
+        ultima: l || null, dias: l ? Math.floor((now - l) / 86400000) : null,
+        andamento: andamento.has(p.id)
+      };
+    });
+
+    return {
+      ano, total, visitadas, faltam, pct: total ? visitadas / total : 0,
+      ultimoMes, metaAteMes, mesesRestantes,
+      ritmo: mesesRestantes ? Math.ceil(faltam / mesesRestantes) : 0,
+      meses, municipios, pendentes, visitsYear, first,
+      fiscalizacoesAno: fin.filter(f => this.inYear(f.Data_Hora_Inicio, ano)).length
+    };
+  },
+
+  bar(frac, color = '#1f8a4c') {
+    const w = Math.max(0, Math.min(100, frac * 100));
+    return `<span style="display:inline-block;width:24mm;height:2.6mm;background:#e3e9ef;border-radius:1mm;vertical-align:middle;overflow:hidden"><span style="display:block;height:100%;width:${w}%;background:${color}"></span></span>`;
+  },
+
+  async coverageReport({ ano, municipio = '' }) {
+    const win = this.prepareWindow();
+    if (!win) return;
+    const d = await this.loadData();
+    const e = v => this.esc(v);
+    const c = this.coverage(d, ano, { municipio });
+
+    if (!c.total) {
+      this.open(this.page('Cobertura anual de propriedades', `${ano}${municipio ? ' — ' + e(municipio) : ''}`,
+        '<div class="empty">Nenhuma propriedade ativa cadastrada neste recorte.</div>'), win);
+      return;
+    }
+
+    const situacao = c.ultimoMes < 0 ? 'Ano ainda não iniciado.'
+      : c.visitadas >= c.metaAteMes
+        ? `<span class="neg">✓ Em dia com a meta</span> — esperado até ${this.MESES[c.ultimoMes].toLowerCase()}: ${this.num(c.metaAteMes)} propriedade(s).`
+        : `<span class="sus">! Abaixo da meta</span> — esperado até ${this.MESES[c.ultimoMes].toLowerCase()}: ${this.num(c.metaAteMes)}; faltam ${this.num(c.metaAteMes - c.visitadas)} para alcançá-la.`;
+
+    const mesesRows = c.meses.map((m, i) => {
+      const futuro = i > c.ultimoMes;
+      return [m.nome,
+        futuro ? '<span class="muted">—</span>' : this.num(m.novas),
+        futuro ? '<span class="muted">—</span>' : this.num(m.fiscalizacoes),
+        futuro ? '<span class="muted">—</span>' : this.num(m.acumulado),
+        this.num(m.meta),
+        futuro ? '' : `${this.bar(c.total ? m.acumulado / c.total : 0, m.acumulado >= m.meta ? '#1f8a4c' : '#b54708')} ${this.pct(m.acumulado, c.total)}`];
+    });
+    mesesRows.push({ _tot: true, cells: ['Total', this.num(c.visitadas), this.num(c.fiscalizacoesAno), this.num(c.visitadas), this.num(c.total), this.pct(c.visitadas, c.total)] });
+
+    const munRows = c.municipios
+      .sort((a, b) => b.faltam - a.faltam || a.municipio.localeCompare(b.municipio, 'pt-BR'))
+      .map(r => [e(r.municipio), this.num(r.total), this.num(r.visitadas), r.faltam ? `<b>${this.num(r.faltam)}</b>` : '<span class="neg">0</span>',
+        `${this.bar(r.pct)} ${this.pct(r.visitadas, r.total)}`]);
+
+    const pend = c.pendentes.sort((a, b) =>
+      String(a.p.Municipio || '').localeCompare(String(b.p.Municipio || ''), 'pt-BR') ||
+      (b.dias ?? 1e9) - (a.dias ?? 1e9) ||
+      String(a.p.Nome_Propriedade || '').localeCompare(String(b.p.Nome_Propriedade || ''), 'pt-BR'));
+
+    const body = `
+      <div class="kpis">
+        <div class="kpi"><span>Propriedades ativas</span><b>${this.num(c.total)}</b><small>meta: 1 visita por ano</small></div>
+        <div class="kpi"><span>Já visitadas</span><b>${this.num(c.visitadas)}</b><small>${this.pct(c.visitadas, c.total)} da meta anual</small></div>
+        <div class="kpi"><span>Faltam visitar</span><b>${this.num(c.faltam)}</b><small>${c.mesesRestantes ? this.num(c.mesesRestantes) + ' mês(es) restante(s)' : 'ano encerrado'}</small></div>
+        <div class="kpi"><span>Ritmo necessário</span><b>${c.mesesRestantes ? this.num(c.ritmo) : '—'}</b><small>${c.mesesRestantes ? 'propriedades por mês' : ''}</small></div>
+      </div>
+      <div class="note" style="font-size:8.6pt">${situacao}</div>
+
+      <h2>Progresso mês a mês</h2>
+      ${this.table(['Mês', 'Propriedades visitadas pela 1ª vez', 'Fiscalizações finalizadas', 'Acumulado', 'Meta acumulada', '% da meta anual'], mesesRows, { numCols: [1, 2, 3, 4] })}
+      <div class="note">Meta acumulada = propriedades ativas ÷ 12 × meses decorridos. Uma propriedade conta uma única vez no ano (na 1ª visita); revisitas aparecem só em "Fiscalizações finalizadas".</div>
+
+      <h2>Por município</h2>
+      ${this.table(['Município', 'Propriedades', 'Visitadas', 'Faltam', 'Cobertura'], munRows, { numCols: [1, 2, 3] })}
+
+      <h2>Propriedades que faltam visitar (${this.num(pend.length)})</h2>
+      ${this.table(['Município', 'Propriedade', 'Produtor', 'Comunidade / localidade', 'Última visita', 'Dias'],
+        pend.map(x => [e(x.p.Municipio || 'Não informado'),
+          `${e(x.p.Nome_Propriedade || '')}${x.andamento ? '<br><span class="sus">fiscalização em andamento</span>' : ''}`,
+          e(x.produtor), e(x.p.Comunidade_Localidade || ''),
+          x.ultima ? x.ultima.toLocaleDateString('pt-BR') : '<span class="muted">nunca visitada</span>',
+          x.dias != null ? this.num(x.dias) : '—']),
+        { numCols: [5], empty: 'Todas as propriedades já foram visitadas neste ano. ✓' })}
+
+      <div class="note">Considera fiscalizações <b>finalizadas</b> com data no ano e propriedades com cadastro ativo. Fiscalizações em andamento ou canceladas não contam.</div>`;
+
+    this.open(this.page('Cobertura anual de propriedades',
+      `${ano}${municipio ? ' — ' + e(municipio) : ' — todo o estado'} • controle da gerência`, body), win);
   }
 };
