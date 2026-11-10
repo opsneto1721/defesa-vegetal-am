@@ -1,3 +1,4 @@
+/* Defesa Vegetal AM — versão 2.0.0-alpha.15 */
 /* =========================================================
    DEFESA VEGETAL AM - V2
    MÓDULO: DASHBOARD
@@ -207,7 +208,7 @@ const DashboardModule = {
       </section>`;
   },
 
-  bindTooltips() {
+  bindTooltips(root = document) {
     const tip = document.getElementById('dbTooltip');
     if (!tip) return;
     const show = (el, x, y) => {
@@ -222,7 +223,7 @@ const DashboardModule = {
       tip.style.left = Math.min(window.innerWidth - w - 8, Math.max(8, x - w / 2)) + 'px';
       tip.style.top = (y - tip.offsetHeight - 12) + 'px';
     };
-    document.querySelectorAll('[data-tip-value]').forEach(el => {
+    root.querySelectorAll('[data-tip-value]').forEach(el => {
       el.addEventListener('pointermove', e => show(el, e.clientX, e.clientY));
       el.addEventListener('pointerdown', e => show(el, e.clientX, e.clientY));
       el.addEventListener('pointerleave', () => { tip.hidden = true; });
@@ -334,7 +335,29 @@ const DashboardModule = {
       /* Cadastros */
       const areaTotal = culturas.reduce((t, c) => t + Number(String(c.Area_Producao_ha || c.Area_Plantada_ha || 0).replace(',', '.')) || t, 0);
 
+      /* Cobertura anual (ano corrente; respeita só o filtro de município) */
+      const anoCob = now.getFullYear();
+      const cobAll = Relatorios.coverage({ propriedades, fiscalizacoes: fiscAll, produtores }, anoCob);
+      const cob = F.municipio ? Relatorios.coverage({ propriedades, fiscalizacoes: fiscAll, produtores }, anoCob, { municipio: F.municipio }) : cobAll;
+      this.cobertura = cobAll;
+      const emDia = cob.visitadas >= cob.metaAteMes;
+
       container.innerHTML = `
+        <h3 class="db-group-title">Cobertura anual de propriedades — ${anoCob}${F.municipio ? ' • ' + this.escapeHtml(F.municipio) : ''}</h3>
+        <div class="dashboard-summary">
+          ${this.statTile('Cobertura do ano', this.num(cob.pct * 100, 0) + '%', `${this.num(cob.visitadas)} de ${this.num(cob.total)} propriedade(s) visitadas`)}
+          ${this.statTile('Faltam visitar', this.num(cob.faltam), cob.mesesRestantes ? `${this.num(cob.mesesRestantes)} mês(es) até dezembro` : 'ano encerrado')}
+          ${this.statTile('Meta até este mês', this.num(cob.metaAteMes), cob.total ? (emDia ? '✓ em dia' : `! ${this.num(cob.metaAteMes - cob.visitadas)} abaixo da meta`) : 'sem propriedades', cob.total && !emDia ? 'db-warning-tile' : '')}
+          ${this.statTile('Ritmo necessário', cob.mesesRestantes ? this.num(cob.ritmo) : '—', 'propriedades por mês')}
+        </div>
+        <div class="db-grid">
+          ${this.card('Mapa de cobertura por município', `Propriedades ativas com ao menos uma fiscalização finalizada em ${anoCob}. Toque num município para ver os números.`, `
+            <div id="dbMapa" class="db-map"><p class="dashboard-empty">Carregando mapa...</p></div>
+            <div class="db-map-actions">
+              <button type="button" class="btn btn-secondary" onclick="Relatorios.coverageReport({ ano: ${anoCob}, municipio: DashboardModule.filters.municipio })">📄 Relatório de cobertura${F.municipio ? ' — ' + this.escapeHtml(F.municipio) : ''}</button>
+            </div>`, true)}
+        </div>
+
         <h3 class="db-group-title">Fiscalização</h3>
         <div class="dashboard-summary">
           ${this.statTile('Fiscalizações', this.num(fiscF.length), `${this.num(propsFisc)} propriedade(s)`)}
@@ -390,12 +413,145 @@ const DashboardModule = {
         </section>`;
 
       this.bindTooltips();
+      this.renderMap(cobAll, F.municipio);
     } catch (error) {
       console.error('Erro ao carregar dashboard:', error);
       container.innerHTML = `<div class="empty-state">Não foi possível carregar os indicadores.</div>`;
     }
 
     container.classList.remove('db-loading');
+  },
+
+
+  /* =======================================================
+     MAPA DE COBERTURA (municípios do Amazonas)
+     Limites: IBGE (API de malhas), baixados na 1ª vez com
+     internet e guardados no aparelho para uso offline.
+  ======================================================= */
+
+  MAPA_META_KEY: 'mapaMunicipiosAM_v1',
+  MAPA_URL: 'https://servicodados.ibge.gov.br/api/v3/malhas/estados/13?intrarregiao=municipio&formato=application/vnd.geo%2Bjson&qualidade=minima',
+  MAPA_NOMES_URL: 'https://servicodados.ibge.gov.br/api/v1/localidades/estados/13/municipios',
+
+  /* Escala sequencial de um só tom (verde) + neutro para "sem propriedades" */
+  MAPA_ESCALA: [
+    { min: 0, max: 0, cor: '#e4f1e8', label: '0%' },
+    { min: 0, max: 0.25, cor: '#b9dcc4', label: 'até 25%' },
+    { min: 0.25, max: 0.5, cor: '#86c39b', label: '25–50%' },
+    { min: 0.5, max: 0.75, cor: '#4ea36e', label: '50–75%' },
+    { min: 0.75, max: 1, cor: '#21804a', label: '75–99%' },
+    { min: 1, max: 1, cor: '#0d4f2a', label: '100%' }
+  ],
+  MAPA_SEM_DADOS: '#f4f5f6',
+
+  colorFor(pct) {
+    const e = this.MAPA_ESCALA;
+    if (pct <= 0) return e[0].cor;
+    if (pct >= 1) return e[5].cor;
+    return (e.slice(1, 5).find(x => pct <= x.max) || e[4]).cor;
+  },
+
+  async fetchJson(url, ms = 20000) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), ms);
+    try {
+      const r = await fetch(url, { signal: ctrl.signal });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return await r.json();
+    } finally {
+      clearTimeout(t);
+    }
+  },
+
+  /* GeoJSON -> caminhos SVG já projetados (pequeno para guardar) */
+  buildShapes(geo, nomes) {
+    const nameByCode = new Map((nomes || []).map(m => [String(m.id), m.nome]));
+    const feats = (geo.features || []).filter(f => f.geometry);
+    const polys = f => f.geometry.type === 'Polygon' ? [f.geometry.coordinates]
+      : f.geometry.type === 'MultiPolygon' ? f.geometry.coordinates : [];
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    feats.forEach(f => polys(f).forEach(poly => poly.forEach(ring => ring.forEach(([x, y]) => {
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+    }))));
+    const k = Math.cos(((minY + maxY) / 2) * Math.PI / 180);
+    const W = 1000;
+    const scale = W / ((maxX - minX) * k);
+    const H = Math.ceil((maxY - minY) * scale);
+    const px = x => ((x - minX) * k * scale).toFixed(1);
+    const py = y => ((maxY - y) * scale).toFixed(1);
+    const shapes = feats.map(f => {
+      const code = String(f.properties?.codarea || f.properties?.CD_MUN || f.id || '');
+      const d = polys(f).map(poly => poly.map(ring =>
+        'M' + ring.map(([x, y]) => px(x) + ' ' + py(y)).join('L') + 'Z').join('')).join('');
+      return { code, nome: nameByCode.get(code) || f.properties?.nome || f.properties?.NM_MUN || code, d };
+    });
+    return { w: W, h: H, shapes, fonte: 'IBGE — malha municipal', baixadoEm: new Date().toISOString() };
+  },
+
+  async loadShapes() {
+    const cached = await getMeta(this.MAPA_META_KEY);
+    if (cached?.shapes?.length) return cached;
+    if (!navigator.onLine) return null;
+    const [geo, nomes] = await Promise.all([this.fetchJson(this.MAPA_URL), this.fetchJson(this.MAPA_NOMES_URL)]);
+    const built = this.buildShapes(geo, nomes);
+    if (!built.shapes.length) return null;
+    await setMeta(this.MAPA_META_KEY, built);
+    return built;
+  },
+
+  async renderMap(cob, selected = '') {
+    const box = document.getElementById('dbMapa');
+    if (!box) return;
+    const byMun = new Map(cob.municipios.map(r => [Relatorios.normMun(r.municipio), r]));
+    const tableRows = cob.municipios.slice()
+      .sort((a, b) => a.municipio.localeCompare(b.municipio, 'pt-BR'))
+      .map(r => [r.municipio, this.num(r.total), this.num(r.visitadas), this.num(r.faltam), this.num(r.pct * 100, 0) + '%']);
+    const table = this.tableView('mapa', ['Município', 'Propriedades', 'Visitadas', 'Faltam', 'Cobertura'], tableRows);
+
+    let mapa = null;
+    try {
+      mapa = await this.loadShapes();
+    } catch (error) {
+      console.warn('Mapa indisponível:', error);
+    }
+    if (!document.body.contains(box)) return;
+
+    if (!mapa) {
+      box.innerHTML = `
+        <p class="db-map-off">🗺️ O mapa precisa de internet na primeira vez, para baixar os limites dos municípios (IBGE). Depois ele funciona sem internet. Enquanto isso, a cobertura por município:</p>
+        ${this.rankedBars('mapaoff', cob.municipios.slice().sort((a, b) => a.pct - b.pct).map(r => [r.municipio, Math.round(r.pct * 100)]), { unit: '%', max: 80, emptyText: 'Nenhuma propriedade ativa cadastrada.' }).replace(/<details class="db-table">[\s\S]*<\/details>/, '')}
+        ${table}`;
+      this.bindTooltips(box);
+      return;
+    }
+
+    const selKey = Relatorios.normMun(selected);
+    const matched = new Set();
+    const paths = mapa.shapes.map(sh => {
+      const key = Relatorios.normMun(sh.nome);
+      const r = byMun.get(key);
+      if (r) matched.add(key);
+      const fill = r && r.total ? this.colorFor(r.pct) : this.MAPA_SEM_DADOS;
+      const tipV = r && r.total ? `${this.num(r.pct * 100, 0)}% visitadas` : 'Sem propriedades cadastradas';
+      const tipL = r && r.total ? `${sh.nome}: ${this.num(r.visitadas)} de ${this.num(r.total)} • faltam ${this.num(r.faltam)}` : sh.nome;
+      return `<path d="${sh.d}" fill="${fill}" class="${key === selKey ? 'sel' : ''}" tabindex="0"
+        data-mun="${this.escapeHtml(sh.nome)}" data-tip-value="${this.escapeHtml(tipV)}" data-tip-label="${this.escapeHtml(tipL)}"><title>${this.escapeHtml(sh.nome)}</title></path>`;
+    });
+    const unmatched = cob.municipios.filter(r => !matched.has(Relatorios.normMun(r.municipio)));
+    const sel = selKey ? mapa.shapes.findIndex(sh => Relatorios.normMun(sh.nome) === selKey) : -1;
+    if (sel >= 0) paths.push(paths.splice(sel, 1)[0]); // desenha o selecionado por cima
+
+    box.innerHTML = `
+      <svg viewBox="0 0 ${mapa.w} ${mapa.h}" role="img" aria-label="Mapa do Amazonas com a cobertura anual de visitas por município">${paths.join('')}</svg>
+      <div class="db-legend db-map-legend">
+        ${this.MAPA_ESCALA.map(e => `<span><i class="db-key" style="background:${e.cor}"></i>${e.label}</span>`).join('')}
+        <span><i class="db-key db-key-empty" style="background:${this.MAPA_SEM_DADOS}"></i>sem propriedades</span>
+      </div>
+      ${unmatched.length ? `<p class="db-map-note">Não localizados no mapa (verifique o nome do município no cadastro): ${unmatched.map(r => this.escapeHtml(r.municipio)).join(', ')}.</p>` : ''}
+      <p class="db-map-note">Limites municipais: IBGE.</p>
+      ${table}`;
+    this.bindTooltips(box);
   },
 
 
