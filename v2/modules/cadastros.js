@@ -19,9 +19,9 @@ const CadastrosModule = {
         <button
           class="btn btn-secondary"
           type="button"
-          onclick="App.showHome()"
+          onclick="Nav.back()"
         >
-          ← Início
+          ← Voltar
         </button>
 
         <h2 style="margin-top:18px">

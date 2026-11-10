@@ -41,7 +41,7 @@ const ServidoresModule = {
     main.innerHTML = `
       <section class="module-page">
         <div class="module-header">
-          <button type="button" class="btn btn-secondary" onclick="App.showHome()">← Voltar</button>
+          <button type="button" class="btn btn-secondary" onclick="Nav.back()">← Voltar</button>
           <div>
             <h2>Servidores</h2>
             <p>Acesso ao sistema: cadastro, perfis, lotação e senhas.</p>

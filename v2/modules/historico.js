@@ -67,7 +67,7 @@ const HistoricoModule = {
     main.innerHTML = `
       <section class="module-page">
         <div class="module-header">
-          <button type="button" class="btn btn-secondary" onclick="App.showHome()">← Voltar</button>
+          <button type="button" class="btn btn-secondary" onclick="Nav.back()">← Voltar</button>
           <div>
             <h2>Histórico e documentos</h2>
             <p>Termos emitidos e a linha do tempo de cada produtor e propriedade.</p>
@@ -77,6 +77,7 @@ const HistoricoModule = {
         <div class="hs-tabs" role="tablist">
           <button type="button" role="tab" class="hs-tab ${tab === 'documentos' ? 'active' : ''}" onclick="HistoricoModule.open('documentos')">📄 Documentos</button>
           <button type="button" role="tab" class="hs-tab ${tab === 'linha' ? 'active' : ''}" onclick="HistoricoModule.open('linha')">🕒 Linha do tempo</button>
+          <button type="button" role="tab" class="hs-tab ${tab === 'relatorios' ? 'active' : ''}" onclick="HistoricoModule.open('relatorios')">📊 Relatórios</button>
         </div>
 
         <div id="hsContent"><p>Carregando...</p></div>
@@ -84,6 +85,7 @@ const HistoricoModule = {
 
     await this.load();
     if (tab === 'documentos') this.renderDocumentsTab();
+    else if (tab === 'relatorios') await this.renderReportsTab();
     else this.renderTimelineTab();
   },
 
@@ -234,6 +236,88 @@ const HistoricoModule = {
         this.renderDocuments();
       }
     });
+  },
+
+  /* =======================================================
+     RELATÓRIOS
+  ======================================================= */
+
+  async renderReportsTab() {
+    const now = new Date();
+    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const years = [...new Set(this.data.fiscs.map(f => String(f.Data_Hora_Inicio || '').slice(0, 4)).filter(y => /^\d{4}$/.test(y)).concat(String(now.getFullYear())))].sort().reverse();
+    const muns = [...new Set(this.data.fiscs.map(f => f.Municipio).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+    /* Pragas: catálogo + as registradas nas fiscalizações */
+    const pests = new Map();
+    (await dbGetAll('cadastroPragas')).filter(p => p.ID_Praga).forEach(p => pests.set(String(p.ID_Praga), String(p.Nome_Comum || p.Nome_Cientifico || p.ID_Praga)));
+    this.data.occs.forEach(o => {
+      const k = Relatorios.pestKey(o);
+      if (!pests.has(k) && o.Nome_Praga) pests.set(k, o.Nome_Praga);
+    });
+    const pestOpts = [...pests.entries()].sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'));
+
+    /* Servidores: catálogo + responsáveis/equipe das fiscalizações */
+    const servers = new Map();
+    (await dbGetAll('servidores')).filter(s => s.ID_Servidor && s.Nome_Completo).forEach(s => servers.set(String(s.ID_Servidor), s.Nome_Completo));
+    this.data.fiscs.forEach(f => {
+      if (f.ID_Servidor && f.Nome_Servidor && !servers.has(f.ID_Servidor)) servers.set(f.ID_Servidor, f.Nome_Servidor);
+    });
+    const me = Auth.currentServerId();
+    if (me && !servers.has(me)) servers.set(me, Auth.currentServerName());
+    const serverOpts = [...servers.entries()].sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'));
+
+    const pestSelect = id => `<select id="${id}"><option value="">Todas as pragas</option>${pestOpts.map(([k, n]) => `<option value="${this.esc(k)}">${this.esc(n)}</option>`).join('')}</select>`;
+    const munSelect = id => `<select id="${id}"><option value="">Todos os municípios</option>${muns.map(m => `<option>${this.esc(m)}</option>`).join('')}</select>`;
+
+    document.getElementById('hsContent').innerHTML = `
+      <p class="hs-hint">Os relatórios usam os registros sincronizados neste aparelho. Sincronize antes para incluir o trabalho de todos os servidores.</p>
+      <div class="rp-grid">
+        <section class="rp-card">
+          <div class="rp-icon">🐛</div>
+          <h3>Por praga — mensal</h3>
+          <p>Detecções, suspeitas, avaliações sem detecção, municípios, focos com coordenadas e amostras do mês.</p>
+          <label>Mês<input type="month" id="rpMesP" value="${ym}"></label>
+          <label>Praga${pestSelect('rpPragaM')}</label>
+          <label>Município${munSelect('rpMunM')}</label>
+          <button type="button" class="btn btn-primary" id="rpBtnPM">Gerar relatório</button>
+        </section>
+
+        <section class="rp-card">
+          <div class="rp-icon">📅</div>
+          <h3>Por praga — anual</h3>
+          <p>Tudo do mensal, mais a evolução mês a mês (detecções / avaliações) de cada praga.</p>
+          <label>Ano<select id="rpAno">${years.map(y => `<option>${y}</option>`).join('')}</select></label>
+          <label>Praga${pestSelect('rpPragaA')}</label>
+          <label>Município${munSelect('rpMunA')}</label>
+          <button type="button" class="btn btn-primary" id="rpBtnPA">Gerar relatório</button>
+        </section>
+
+        <section class="rp-card">
+          <div class="rp-icon">👤</div>
+          <h3>Atividade por servidor — mensal</h3>
+          <p>Prestação de contas: fiscalizações (responsável e equipe), termos, área, amostras, cadastros e municípios atendidos, com campo para visto da chefia.</p>
+          <label>Mês<input type="month" id="rpMesS" value="${ym}"></label>
+          <label>Servidor<select id="rpServ">${serverOpts.map(([id, n]) => `<option value="${this.esc(id)}" ${id === me ? 'selected' : ''}>${this.esc(n)}</option>`).join('')}</select></label>
+          <button type="button" class="btn btn-primary" id="rpBtnS">Gerar relatório</button>
+        </section>
+      </div>`;
+
+    const ymParts = id => {
+      const [y, m] = this.val(id).split('-').map(Number);
+      return { ano: y, mes: m - 1 };
+    };
+    document.getElementById('rpBtnPM').onclick = () => {
+      if (!this.val('rpMesP')) return App.showMessage('Escolha o mês.', 'warning');
+      Relatorios.pestReport({ tipo: 'MENSAL', ...ymParts('rpMesP'), praga: this.val('rpPragaM'), municipio: this.val('rpMunM') });
+    };
+    document.getElementById('rpBtnPA').onclick = () => {
+      Relatorios.pestReport({ tipo: 'ANUAL', ano: Number(this.val('rpAno')), mes: 0, praga: this.val('rpPragaA'), municipio: this.val('rpMunA') });
+    };
+    document.getElementById('rpBtnS').onclick = () => {
+      if (!this.val('rpMesS') || !this.val('rpServ')) return App.showMessage('Escolha o mês e o servidor.', 'warning');
+      Relatorios.activityReport({ servidor: this.val('rpServ'), ...ymParts('rpMesS') });
+    };
   },
 
   base64ToBlob(base64, type = 'application/pdf') {

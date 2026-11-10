@@ -430,7 +430,7 @@ const FiscalizacoesModule = {
     main.innerHTML = `
       <section class="module-page">
         <div class="module-header">
-          <button type="button" class="btn btn-secondary" onclick="App.showHome()">← Voltar</button>
+          <button type="button" class="btn btn-secondary" onclick="Nav.back()">← Voltar</button>
           <div>
             <h2>Fiscalizações</h2>
             <p>Termos de fiscalização vinculados ao produtor, à propriedade e às culturas cadastradas.</p>
@@ -589,7 +589,7 @@ const FiscalizacoesModule = {
         </div>
         <div id="fzPropResults" class="search-results"></div>
         <div class="form-actions">
-          <button type="button" class="btn btn-secondary" onclick="FiscalizacoesModule.open()">Cancelar</button>
+          <button type="button" class="btn btn-secondary" onclick="Nav.back()">Cancelar</button>
           <button type="button" class="btn btn-secondary" onclick="CadastrosModule.open()">Cadastrar produtor/propriedade</button>
         </div>
       </div>`;
@@ -854,6 +854,31 @@ const FiscalizacoesModule = {
     };
   },
 
+  /* Área e nº de plantas vindos do cadastro da cultura (editáveis) */
+  cultureDefaults(culture) {
+    const n = v => {
+      const t = String(v ?? '').trim().replace(',', '.');
+      return t === '' || isNaN(Number(t)) ? '' : Number(t);
+    };
+    return {
+      Area_Fiscalizada_ha: n(culture?.Area_Plantada_ha) !== '' ? n(culture.Area_Plantada_ha) : n(culture?.Area_Producao_ha),
+      Quantidade_Plantas_Avaliadas: n(culture?.Quantidade_Plantas)
+    };
+  },
+
+  /* Completa culturas já incluídas que ficaram sem área/plantas */
+  async fillCultureDefaults() {
+    if (!this.isEditable()) return;
+    for (const fc of await this.getChildren('fiscalizacaoCulturas')) {
+      if ((fc.Area_Fiscalizada_ha !== '' && fc.Area_Fiscalizada_ha != null) ||
+          (fc.Quantidade_Plantas_Avaliadas !== '' && fc.Quantidade_Plantas_Avaliadas != null)) continue;
+      const culture = await dbGet('culturas', fc.ID_Cultura_Local);
+      const def = this.cultureDefaults(culture);
+      if (def.Area_Fiscalizada_ha === '' && def.Quantidade_Plantas_Avaliadas === '') continue;
+      await this.saveChild('fiscalizacaoCulturas', { ...fc, ...def });
+    }
+  },
+
   /* ---------- Equipe ---------- */
 
   getTeam(f) {
@@ -1044,8 +1069,7 @@ const FiscalizacoesModule = {
           ID_Cultura_Local: culture.id,
           ID_Tipo_Cultura: culture.ID_Tipo_Cultura || '',
           Nome_Cultura_Local: this.cultureName(culture),
-          Area_Fiscalizada_ha: '',
-          Quantidade_Plantas_Avaliadas: '',
+          ...this.cultureDefaults(culture),
           Observacoes: ''
         }, [{ entity: 'culturas', recordId: culture.id }]);
       } else if (!wanted && fc) {
@@ -1074,6 +1098,7 @@ const FiscalizacoesModule = {
     this.property = await dbGet('propriedades', this.current.ID_Propriedade_Local);
     this.producer = this.property ? await dbGet('produtores', this.property.ID_Produtor_Local) : null;
     this.showListControls(false);
+    await this.fillCultureDefaults();
     await this.renderWorkspace();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   },
@@ -1122,7 +1147,7 @@ const FiscalizacoesModule = {
         </div>
 
         <div class="fz-toolbar">
-          <button type="button" class="btn btn-secondary" onclick="FiscalizacoesModule.open()">← Lista</button>
+          <button type="button" class="btn btn-secondary" onclick="Nav.back()">← Voltar</button>
           ${editable ? `<button type="button" class="btn btn-secondary" onclick="FiscalizacoesModule.editGeneral()">✏️ Dados gerais e culturas</button>` : ''}
           <button type="button" class="btn btn-secondary" onclick="FiscalizacoesModule.printTerm()">🖨️ ${doc ? 'Termo de Fiscalização' : 'Prévia do termo'}</button>
           ${!editable && this.status(f) === 'FINALIZADA' && this.canManage(f) ? `<button type="button" class="btn btn-secondary" onclick="FiscalizacoesModule.reopen()">Reabrir para edição</button>` : ''}
@@ -1270,7 +1295,7 @@ const FiscalizacoesModule = {
         <div class="fz-culture-head">
           <strong>${this.esc(fc.Nome_Cultura_Local)}</strong>
           <div class="fz-row fz-culture-metrics">
-            <label>Área fiscalizada (ha)
+            <label title="Preenchido a partir do cadastro da cultura; pode ser alterado">Área fiscalizada (ha)
               <input class="fz-mini" inputmode="decimal" data-fc="${this.esc(fc.id)}" data-field="Area_Fiscalizada_ha" value="${this.esc(fc.Area_Fiscalizada_ha ?? '')}" ${dis}></label>
             <label>Plantas avaliadas
               <input class="fz-mini" type="number" min="0" data-fc="${this.esc(fc.id)}" data-field="Quantidade_Plantas_Avaliadas" value="${this.esc(fc.Quantidade_Plantas_Avaliadas ?? '')}" ${dis}></label>
@@ -2700,7 +2725,7 @@ const FiscalizacoesModule = {
     const f = this.current;
     const e = v => this.esc(v ?? '');
     const fiscalSig = signs?.find(s => s.Tipo_Assinante === 'SERVIDOR');
-    const respSig = signs?.find(s => s.Tipo_Assinante !== 'SERVIDOR');
+    const respSig = signs?.find(s => s.Tipo_Assinante !== 'SERVIDOR' && s.Tipo_Assinante !== 'TESTEMUNHA');
     const pending = doc ? null : await getMeta(this.respSignKey());
 
     const fiscalImg = fiscalSig ? fiscalSig.Assinatura : this.fiscalSignature(f);
@@ -2735,8 +2760,9 @@ const FiscalizacoesModule = {
     }
 
     const f = this.current;
-    const data = await this.loadAll();
     const doc = await this.getDocument();
+    await this.ensureDocumentImages(doc);
+    const data = await this.loadAll();
     const signs = doc ? (await dbGetAll('assinaturas')).filter(a => a.ID_Documento_Local === doc.id) : [];
     const { fiscalBlock, respBlock } = await this.signatureBlocks(doc, signs);
     const e = v => this.esc(v ?? '');
@@ -2791,13 +2817,54 @@ const FiscalizacoesModule = {
     win.document.close();
   },
 
+  /*
+    Assinaturas e fotos feitas em OUTRO aparelho ficam só no
+    Drive. Antes de montar o termo, busca as que faltarem.
+  */
+  async ensureDocumentImages(doc) {
+    if (!doc) return true;
+    const signs = (await dbGetAll('assinaturas')).filter(a => a.ID_Documento_Local === doc.id && a.Excluido !== 'SIM');
+    const photos = await this.getChildren('evidencias');
+    const missing =
+      signs.some(a => !a.Assinatura && (a.Assinatura_URL || a.Status_Assinatura === 'ASSINADO')) ||
+      photos.some(p => !p.Foto && (p.Arquivo_URL || p.Foto_URL) && p.Incluir_PDF !== 'NAO');
+    if (!missing) return true;
+
+    if (!navigator.onLine || !apiIsConfigured()) {
+      App.showMessage('Sem internet: assinaturas e fotos coletadas em outro aparelho não aparecerão nesta impressão.', 'warning');
+      return false;
+    }
+
+    try {
+      const result = await apiRequest('getDocumentImages', {
+        ID_Documento: doc.ID_Documento || doc.id,
+        ID_Fiscalizacao: this.current.ID_Fiscalizacao || this.current.id
+      });
+      for (const a of result.assinaturas || []) {
+        const local = await dbGet('assinaturas', a.id);
+        if (local && a.Assinatura) await dbPut('assinaturas', { ...local, Assinatura: a.Assinatura });
+      }
+      for (const e of result.evidencias || []) {
+        const local = await dbGet('evidencias', e.id);
+        if (local && e.Foto) await dbPut('evidencias', { ...local, Foto: e.Foto });
+      }
+      return true;
+    } catch (error) {
+      console.warn('Imagens do termo não obtidas:', error);
+      App.showMessage('Não foi possível buscar as assinaturas no servidor. Tente de novo com internet.', 'warning');
+      return false;
+    }
+  },
+
   async printTerm() {
     const win = window.open('', '_blank');
     if (!win) {
       App.showMessage('Permita pop-ups para abrir o termo.', 'warning');
       return;
     }
+    win.document.write('<p style="font-family:sans-serif;padding:20px">Preparando o termo...</p>');
     const doc = await this.getDocument();
+    await this.ensureDocumentImages(doc);
     const html = await this.buildTermHTML(doc, true);
     win.document.open();
     win.document.write(html);

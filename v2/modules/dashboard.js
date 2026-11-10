@@ -32,7 +32,7 @@ const DashboardModule = {
     main.innerHTML = `
       <section class="module-page">
         <div class="module-header">
-          <button type="button" class="btn btn-secondary" onclick="App.showHome()">← Voltar</button>
+          <button type="button" class="btn btn-secondary" onclick="Nav.back()">← Voltar</button>
           <div>
             <h2>Dashboard</h2>
             <p>Indicadores de fiscalização, situação fitossanitária e cadastros.</p>
